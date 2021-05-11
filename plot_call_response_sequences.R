@@ -33,7 +33,23 @@ for(i in 2:length(dist.bins)){
   mean.call.rates[i-1,] <- colMeans(callresp.seqs[idxs,],na.rm=T)
 }
 
-#---PLOT 3: 
+#make the plot
+quartz(height = 8, width = 12)
+par(mfrow=c(1,length(dist.bins)-1))
+par(mar=c(8,6,3,1))
+ymax <- max(mean.call.rates)+.01
+cols <- viridis(nrow(mean.call.rates))
+for(i in 1:nrow(mean.call.rates)){
+  plot(NULL, xlim=c(-2,2),ylim=c(0,ymax),xlab='Time lag (sec)', ylab = 'Call rate', cex.axis=1.5,cex.lab=1.5, main = paste(dist.bins[i],'-', dist.bins[i+1],'m',sep=' '))
+  abline(v = seq(-3,3,.1), col = 'gray', lwd = 0.5)
+  abline(v=0, lty=1, col = 'black')
+  lines(tseq, mean.call.rates[i,], col = cols[i], lwd = 2, type = 'l', )
+}
+
+#---PLOT 3: Self-reply dynamics (after how long do individuals repeat themselves?)
+#CONTINUE HERE
+idxs <- which(callresp$caller == callresp$responder)
+self.reply.rates <- colMeans(callresp.seqs[idxs,],na.rm=T)
 
 #make the plot
 quartz(height = 8, width = 12)
@@ -47,6 +63,10 @@ for(i in 1:nrow(mean.call.rates)){
   abline(v=0, lty=1, col = 'black')
   lines(tseq, mean.call.rates[i,], col = cols[i], lwd = 2, type = 'l', )
 }
+
+
+
+
 
 
 # #SUBSET BY CALLER

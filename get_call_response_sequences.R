@@ -67,10 +67,10 @@ max.lag <- 30
 step <- .02
 
 #list of call types to include in the set of calls by the initial caller (which determines the 0 point of the correlogram)
-caller.calltypes <- c('cc') 
+caller.calltypes <- c('sn') 
 
 #list of call types of include in the set of calls by the responder (determines the curve in the correlogram)
-responder.calltypes <- c('cc')
+responder.calltypes <- c('sn')
 
 #what to trigger on (call begin or call end)
 trigger.on <- 'begin'
