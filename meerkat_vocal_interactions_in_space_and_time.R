@@ -16,11 +16,17 @@
 
 #----------------PARAMETERS--------------------
 
+#whether to save output
+save.output <- T
+
 #directory where data is stored
 datadir <- '~/Dropbox/meerkats/meerkats_shared/data' 
 
 #directory where code is stored for this project
 codedir <- '~/Dropbox/code_ari/meerkat_vocal_interactions'
+
+#directory of where to save results
+savedir <- '~/Dropbox/meerkats/meerkats_shared/ari/vocal_interactions/data/call_response'
 
 #filename of general meerkat functions
 general.funcs.filename <- '~/Dropbox/code_ari/move_comm_analysis/general/meerkat_functions.R'
@@ -40,15 +46,19 @@ caller.calltypes <- c('cc')
 #list of call types of include in the set of calls by the responder (determines the curve in the correlogram)
 responder.calltypes <- c('cc')
 
-#distance bins to consider for the distance between caller and responder
-dist.bins <- c(0,2,5,10,50)
-
 #what to trigger on (call begin or call end)
 trigger.on <- 'begin'
 
-#whether to use self-responses instead of responses to others, for an analysis of individual calling periodicity (defaults to FALSE)
-#normally this should be set to FALSE
-self.responses <- FALSE
+#store parameters in a named list
+params <- list()
+params$datadir <- datadir
+params$codedir <- codedir
+params$bw <- bw
+params$max.lag <- max.lag
+params$step <- step
+params$caller.calltypes <- caller.calltypes
+params$responder.calltypes <- responder.calltypes
+params$trigger.on <- trigger.on
 
 #whether to instead perform an analysis of whether an individual repeats its call in a certain time window after its initial call
 #as a function of whether there have been any calls from nearby individuals (within repeat.dist.thresh meters) in the intervening time
@@ -68,6 +78,10 @@ groupyears <- c('HM2017', 'HM2019', 'L2019')
 #file names
 audio.file <- 'full_labelfile_conflicts_resolved.csv'
 gps.files <- paste(groupyears, 'COORDINATES_all_sessions.RData', sep = '_')
+
+if(save.output){
+  savename <- paste0('callresp_', caller.calltypes, '_', responder.calltypes, '_bw', bw, '.RData')
+}
 
 #------------------LIBRARIES----------------------
 
@@ -270,12 +284,13 @@ for(i in 1:nrow(callresp.seqs)){
     zero.time <- callresp$tf[i]
   }
   responder <- callresp$responder[i]
+  caller <- callresp$caller[i]
   
   #if too close to end, don't use
   if(((zero.time - max.lag) > callresp$start[i]) & ((zero.time + max.lag) < callresp$end[i])){
     
     #get call times of the responder (only of the correct call type, and removing the current call)
-    current.call.idx <- which(calls.use$caller == responder & calls.use$t0 == callresp$t0[i] & calls.use$tf == callresp$tf[i])
+    current.call.idx <- which(calls.use$caller == caller & calls.use$t0 == callresp$t0[i] & calls.use$tf == callresp$tf[i])
     if(length(current.call.idx)==0){
       stop('could not find current call in the table')
     } 
@@ -309,6 +324,9 @@ for(i in 1:nrow(callresp.seqs)){
 }
 
 timestamp()
+
+save(list = c('callresp','callresp.seqs'))
+
 print('plotting results')
 
 #if performing an analysis of whether you repeat a call depending on whether others have replied, need to compute some extra things
@@ -385,6 +403,10 @@ if(repeat.self.analysis == T){
   
   callresp.filt$dt.prev <- callresp.filt$t0 - callresp.filt$prevcall.t0
   callresp.filt$dt.next <- callresp.filt$nextcall.t0 - callresp.filt$t0
+}
+
+if(save.output){
+  save(file = paste0(savedir, '/', savename), list = c('callresp','callresp.seqs','tseq', 'params'))
 }
 
 #---------------------PLOTTING-------------------
