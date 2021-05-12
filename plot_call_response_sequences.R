@@ -4,64 +4,69 @@ filename <- '~/Dropbox/meerkats/meerkats_shared/ari/vocal_interactions/data/call
 #------------------PARAMETERS------------------
 dist.bins <- c(0,2,5,10,50)
 
+#plots to do
+plot.spiking.neurons <- F
+plot.call.resp.all <- T
+plot.self.resp.all <- T
+
 #--------------------LOAD DATA------------------
 load(filename)
 
 #---------------------PLOTTING-------------------
 
 #---PLOT 1: Spiking neurons example
-i <- 2
-n.neurons <- 200
-xmax <- 10
-isna <- is.na(rowSums(callresp.seqs))
-idxs <- which((callresp$distance >= dist.bins[i-1]) & (callresp$distance < dist.bins[i]) & !isna)
-idxs.sub <- sample(idxs, n.neurons)
-
-quartz(height = 8, width = 4)
-plot(NULL, xlim = c(-xmax, xmax), ylim = c(0, n.neurons), xlab = "Time (sec)", ylab = 'Calls')
-for(j in 1:n.neurons){
-  lines(tseq, callresp.seqs[idxs.sub[j],] + j )
+if(plot.spiking.neurons){
+  i <- 2
+  n.neurons <- 200
+  xmax <- 10
+  isna <- is.na(rowSums(callresp.seqs))
+  idxs <- which((callresp$distance >= dist.bins[i-1]) & (callresp$distance < dist.bins[i]) & !isna)
+  idxs.sub <- sample(idxs, n.neurons)
+  
+  quartz(height = 8, width = 4)
+  plot(NULL, xlim = c(-xmax, xmax), ylim = c(0, n.neurons), xlab = "Time (sec)", ylab = 'Calls')
+  for(j in 1:n.neurons){
+    lines(tseq, callresp.seqs[idxs.sub[j],] + j )
+  }
+  abline(v = 0, col = 'blue')
 }
-abline(v = 0, col = 'blue')
 
 #---PLOT 2: Call response dynamics on average, between two individuals
 
-#collect the data
-mean.call.rates <- matrix(NA,nrow=length(dist.bins)-1, ncol = length(tseq))
-for(i in 2:length(dist.bins)){
-  idxs <- which((callresp$distance >= dist.bins[i-1]) & (callresp$distance < dist.bins[i]) & (callresp$caller != callresp$responder))
-  mean.call.rates[i-1,] <- colMeans(callresp.seqs[idxs,],na.rm=T)
-}
-
-#make the plot
-quartz(height = 8, width = 12)
-par(mfrow=c(1,length(dist.bins)-1))
-par(mar=c(8,6,3,1))
-ymax <- max(mean.call.rates)+.01
-cols <- viridis(nrow(mean.call.rates))
-for(i in 1:nrow(mean.call.rates)){
-  plot(NULL, xlim=c(-2,2),ylim=c(0,ymax),xlab='Time lag (sec)', ylab = 'Call rate', cex.axis=1.5,cex.lab=1.5, main = paste(dist.bins[i],'-', dist.bins[i+1],'m',sep=' '))
-  abline(v = seq(-3,3,.1), col = 'gray', lwd = 0.5)
-  abline(v=0, lty=1, col = 'black')
-  lines(tseq, mean.call.rates[i,], col = cols[i], lwd = 2, type = 'l', )
+if(plot.call.resp.all){
+  #collect the data
+  mean.call.rates <- matrix(NA,nrow=length(dist.bins)-1, ncol = length(tseq))
+  for(i in 2:length(dist.bins)){
+    idxs <- which((callresp$distance >= dist.bins[i-1]) & (callresp$distance < dist.bins[i]) & (callresp$caller != callresp$responder))
+    mean.call.rates[i-1,] <- colMeans(callresp.seqs[idxs,],na.rm=T)
+  }
+  
+  #make the plot
+  quartz(height = 8, width = 12)
+  par(mfrow=c(1,length(dist.bins)-1))
+  par(mar=c(8,6,3,1))
+  ymax <- max(mean.call.rates)+.01
+  cols <- viridis(nrow(mean.call.rates))
+  for(i in 1:nrow(mean.call.rates)){
+    plot(NULL, xlim=c(-2,2),ylim=c(0,ymax),xlab='Time lag (sec)', ylab = 'Call rate', cex.axis=1.5,cex.lab=1.5, main = paste(dist.bins[i],'-', dist.bins[i+1],'m',sep=' '))
+    abline(v = seq(-3,3,.1), col = 'gray', lwd = 0.5)
+    abline(v=0, lty=1, col = 'black')
+    lines(tseq, mean.call.rates[i,], col = cols[i], lwd = 2, type = 'l', )
+  }
 }
 
 #---PLOT 3: Self-reply dynamics (after how long do individuals repeat themselves?)
-#CONTINUE HERE
-idxs <- which(callresp$caller == callresp$responder)
-self.reply.rates <- colMeans(callresp.seqs[idxs,],na.rm=T)
-
-#make the plot
-quartz(height = 8, width = 12)
-par(mfrow=c(1,length(dist.bins)-1))
-par(mar=c(8,6,3,1))
-ymax <- max(mean.call.rates)+.01
-cols <- viridis(nrow(mean.call.rates))
-for(i in 1:nrow(mean.call.rates)){
-  plot(NULL, xlim=c(-2,2),ylim=c(0,ymax),xlab='Time lag (sec)', ylab = 'Call rate', cex.axis=1.5,cex.lab=1.5, main = paste(dist.bins[i],'-', dist.bins[i+1],'m',sep=' '))
-  abline(v = seq(-3,3,.1), col = 'gray', lwd = 0.5)
-  abline(v=0, lty=1, col = 'black')
-  lines(tseq, mean.call.rates[i,], col = cols[i], lwd = 2, type = 'l', )
+if(plot.self.resp.all){
+  idxs <- which(callresp$caller == callresp$responder)
+  self.reply.rates <- colMeans(callresp.seqs[idxs,],na.rm=T)
+  
+  #make the plot
+  quartz(height = 8, width = 8)
+  par(mar=c(6,5,1,1))
+  plot(NULL, xlim = c(-20,20), ylim = c(0,max(self.reply.rates)*1.1), lwd = 2, xlab = 'Time (s)', ylab = 'Self-reply rate', cex.axis = 1.5, cex.lab = 2)
+  abline(v = seq(-20,20,1), col = 'gray', lwd = 0.5)
+  abline(v=0, lty = 2)
+  lines(tseq, self.reply.rates, lwd = 2)
 }
 
 
