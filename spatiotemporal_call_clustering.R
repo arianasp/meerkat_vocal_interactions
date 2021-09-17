@@ -28,7 +28,7 @@ library(viridis)
 #--------------PARAMETERS----------
 
 #time windows (sec)
-time.windows <- c(1,5,10,30,60,120,300,600,1200)
+time.windows <- c(1,5,10,30,60,120,300,600,1200,1800,3600)
 
 #distance windows (m)
 dist.windows <- c(2,4,6,8,10,15,20,25,30,40,60,80,100)
@@ -46,6 +46,9 @@ outdir <- '~/Dropbox/meerkats/meerkats_shared/ari/vocal_interactions/data/call_c
 
 #path to Baptiste's useful functions library
 useful.fun.path <- '~/Dropbox/code_ari/Meerkat_leadership_hackathon/scripts/useful_functions.R'
+
+#load pre-computed data?
+load.precomputed.data <- T
 
 #generate plots?
 generate.plots <- T
@@ -111,241 +114,245 @@ compute_Knox_index <- function(calls.include, allX, allY, dist.window, time.wind
 #------------SETUP-------------
 source(useful.fun.path)
 
-print('Running call clustering analysis')
-timestamp()
-for(sess.idx in 1:length(sessions)){
 
-  #------------LOAD DATA -------
-  session <- sessions[sess.idx]
-  
-  print(session)
-  
-  #loading spatial data and making names easier
-  longNames <- c(load(paste0(gpsdir,session,"_COORDINATES_all_sessions_level1.RData")))
-  shortNames <- simplifyNames(pat=paste(session,"_",sep=""))
-  
-  #load audio data
-  calls.all <- read.csv(paste0(audiodir,session, '_ALL_CALLS_SYNCHED.csv'), header=T, sep='\t', stringsAsFactors=F)
-  
-  #add individual index
-  calls.all$ind.idx <- match(calls.all$ind,indInfo$code)
-  
-  #add time index (note: rounds down the prior second, shouldn't matter for this analysis)
-  call.times <- sub('\\..*','',calls.all$t0GPS_UTC)
-  calls.all$time.idx <- match(call.times, timeLine)
-  
-  #get number of individuals
-  n.inds <- nrow(indInfo)
-  
-  #get number of time steps
-  n.times <- ncol(allX)
-  
-  #get beginning and end times of tracking periods (both GPS and audio) as well as which individuals have both GPS and audio
-  #Note: This will not account for instances where there are gaps in labeling (but this should be rare, unlikely to systematically affect this analysis as it will be same in real vs randomized data)
-  dates <- unique(calls.all$date)
-  labeled.intervals <- data.frame(date = dates, 
-                               audio.start = rep(NA,length(dates)),
-                               audio.end = rep(NA, length(dates)))
-  inds.present <- matrix(FALSE, nrow = nrow(labeled.intervals), ncol = n.inds)
-  for(date.idx in 1:length(dates)){
-    calls.date <- calls.all[which(calls.all$date == dates[date.idx]),]
-    inds.date <- unique(calls.date$ind.idx)
-    inds.present[date.idx, inds.date] <- TRUE
-    start.times <- end.times <- rep(NA, length(inds.date))
-    for(ind.idx in 1:length(inds.date)){
-      ind <- inds.date[ind.idx]
-      
-      #find indexes to start and end marker(s) for that individual
-      start.idxs <- which(calls.date$entryName %in% c('start','START') & calls.date$ind.idx == ind)
-      end.idxs <- which(calls.date$entryName %in% c('end','END','stop','STOP') & calls.date$ind.idx == ind)
-      
-      #get times associated with them
-      if(length(start.idxs)>0){
-        start.times.ind <- calls.date$time.idx[start.idxs]
-      } else{
-        #if there were no 'start' labels found, use the earliest time of any entry for that individual
-        start.times.ind <- min(calls.date$time.idx[which(calls.date$ind.idx==ind)], na.rm=T)
-      }
-      if(length(end.idxs)>0){
-        end.times.ind <- calls.date$time.idx[end.idxs]
-      } else{
-        #if there were no 'start' labels found, use the earliest time of any entry for that individual
-        end.times.ind <- max(calls.date$time.idx[which(calls.date$ind.idx==ind)], na.rm=T)
-      }
-      
-      #if there is more than one start label, use the latest one
-      start.time.ind <- max(start.times.ind)
-      
-      #if there is a more than one end label, use the earliest one
-      end.time.ind <- min(end.times.ind)
-      
-      #if the start or end time index is NA, this means it extends outside the bounds of the GPS data - replace it with the first / last non-NA time index point
-      start.time.ind <- min(calls.date$time.idx[which(calls.date$ind.idx==ind)], na.rm=T)
-      end.time.ind <- max(calls.date$time.idx[which(calls.date$ind.idx==ind)], na.rm=T)
-      
-      #store the data for that individual's start and end time
-      start.times[ind.idx] <- start.time.ind
-      end.times[ind.idx] <- end.time.ind
-    }
-    
-    #get the latest start time and earliest end time across all individuals - this is the recording interval
-    latest.start <- max(start.times, na.rm=T)
-    earliest.end <- min(end.times, na.rm=T)
-    labeled.intervals$audio.start[date.idx] <- latest.start
-    labeled.intervals$audio.end[date.idx] <- earliest.end
-  }
-  
-  #if there are any intervals that don't contain any time, remove from labeled.intervals and inds.present, and output a message
-  empty.intervals <- which(labeled.intervals$audio.start >= labeled.intervals$audio.end)
-  if(length(empty.intervals)>0){
-    print(paste('The interval for date', dates[empty.intervals], 'ends before it starts - removing'))
-    labeled.intervals <- labeled.intervals[-empty.intervals,]
-    inds.present <- inds.present[-empty.intervals,]
-    dates <- dates[-empty.intervals]
-  }
-  
-  #filter to only focal calls
-  calls <- calls.all[which(calls.all$focalType == 'F'),]
-  
-  #filter to only calls you want to analyze - currently close calls (cc) including cc hybrids
-  calls.include <- calls[grep('cc',calls$callType),]
-  
-  #filter to only include calls within the recording intervals specified by date.intervals
-  include.idxs <- c()
-  for(date.idx in 1:length(dates)){
-    include.idxs <- c(include.idxs, labeled.intervals$audio.start[date.idx]:labeled.intervals$audio.end[date.idx])
-  }
-  calls.include <- calls.include[which(calls.include$time.idx %in% include.idxs),]
-  
-  #-----------COMPUTE K STAT IN REAL VS RANDOMIZED DATA -----
-  
-  K.data <- num.data <- denom.data <- matrix(NA, nrow = length(dist.windows), ncol = length(time.windows))
-  print('computing K for real data')
+if(!load.precomputed.data){
+  print('Running call clustering analysis')
   timestamp()
-  for(r in 1:length(dist.windows)){
-    for(t in 1:length(time.windows)){
-      
-      #compute K for the real data
-      out <- compute_Knox_index(calls.include, allX, allY, dist.windows[r], time.windows[t])
-      K.data[r,t] <- out$K
-      num.data[r,t] <- out$num
-      denom.data[r,t] <- out$denom
-      
-    }
-  }
+  for(sess.idx in 1:length(sessions)){
   
-  #Randomizations - randomizing individuals on each day, only within individuals present on that day
-  print('computing K for randomizations')
-  timestamp()
-  K.rand <- num.rand <- denom.rand <- array(NA, dim = c(length(dist.windows), length(time.windows), n.rands))
-  for(n in 1:n.rands){
-    allX_rand <- allX
-    allY_rand <- allY
+    #------------LOAD DATA -------
+    session <- sessions[sess.idx]
     
+    print(session)
+    
+    #loading spatial data and making names easier
+    longNames <- c(load(paste0(gpsdir,session,"_COORDINATES_all_sessions_level1.RData")))
+    shortNames <- simplifyNames(pat=paste(session,"_",sep=""))
+    
+    #load audio data
+    calls.all <- read.csv(paste0(audiodir,session, '_ALL_CALLS_SYNCHED.csv'), header=T, sep='\t', stringsAsFactors=F)
+    
+    #add individual index
+    calls.all$ind.idx <- match(calls.all$ind,indInfo$code)
+    
+    #add time index (note: rounds down the prior second, shouldn't matter for this analysis)
+    call.times <- sub('\\..*','',calls.all$t0GPS_UTC)
+    calls.all$time.idx <- match(call.times, timeLine)
+    
+    #get number of individuals
+    n.inds <- nrow(indInfo)
+    
+    #get number of time steps
+    n.times <- ncol(allX)
+    
+    #get beginning and end times of tracking periods (both GPS and audio) as well as which individuals have both GPS and audio
+    #Note: This will not account for instances where there are gaps in labeling (but this should be rare, unlikely to systematically affect this analysis as it will be same in real vs randomized data)
+    dates <- unique(calls.all$date)
+    labeled.intervals <- data.frame(date = dates, 
+                                 audio.start = rep(NA,length(dates)),
+                                 audio.end = rep(NA, length(dates)))
+    inds.present <- matrix(FALSE, nrow = nrow(labeled.intervals), ncol = n.inds)
     for(date.idx in 1:length(dates)){
-      inds.pres.date <- which(inds.present[date.idx,])
-      n.matches <- 10
-      while(n.matches > 0){
-        permute.idxs <- sample(inds.pres.date, replace=F)
-        n.matches <- sum(permute.idxs == inds.pres.date)
+      calls.date <- calls.all[which(calls.all$date == dates[date.idx]),]
+      inds.date <- unique(calls.date$ind.idx)
+      inds.present[date.idx, inds.date] <- TRUE
+      start.times <- end.times <- rep(NA, length(inds.date))
+      for(ind.idx in 1:length(inds.date)){
+        ind <- inds.date[ind.idx]
+        
+        #find indexes to start and end marker(s) for that individual
+        start.idxs <- which(calls.date$entryName %in% c('start','START') & calls.date$ind.idx == ind)
+        end.idxs <- which(calls.date$entryName %in% c('end','END','stop','STOP') & calls.date$ind.idx == ind)
+        
+        #get times associated with them
+        if(length(start.idxs)>0){
+          start.times.ind <- calls.date$time.idx[start.idxs]
+        } else{
+          #if there were no 'start' labels found, use the earliest time of any entry for that individual
+          start.times.ind <- min(calls.date$time.idx[which(calls.date$ind.idx==ind)], na.rm=T)
+        }
+        if(length(end.idxs)>0){
+          end.times.ind <- calls.date$time.idx[end.idxs]
+        } else{
+          #if there were no 'start' labels found, use the earliest time of any entry for that individual
+          end.times.ind <- max(calls.date$time.idx[which(calls.date$ind.idx==ind)], na.rm=T)
+        }
+        
+        #if there is more than one start label, use the latest one
+        start.time.ind <- max(start.times.ind)
+        
+        #if there is a more than one end label, use the earliest one
+        end.time.ind <- min(end.times.ind)
+        
+        #if the start or end time index is NA, this means it extends outside the bounds of the GPS data - replace it with the first / last non-NA time index point
+        start.time.ind <- min(calls.date$time.idx[which(calls.date$ind.idx==ind)], na.rm=T)
+        end.time.ind <- max(calls.date$time.idx[which(calls.date$ind.idx==ind)], na.rm=T)
+        
+        #store the data for that individual's start and end time
+        start.times[ind.idx] <- start.time.ind
+        end.times[ind.idx] <- end.time.ind
       }
       
-      #replace GPS data with permuted data, for that date interval
-      for(ind in 1:length(inds.pres.date)){
-        time.idxs.date <- labeled.intervals$audio.start[date.idx]:labeled.intervals$audio.end[date.idx]
-        allX_rand[inds.pres.date[ind], time.idxs.date] <- allX[permute.idxs[ind], time.idxs.date]
-        allY_rand[inds.pres.date[ind], time.idxs.date] <- allY[permute.idxs[ind], time.idxs.date]
-      }
+      #get the latest start time and earliest end time across all individuals - this is the recording interval
+      latest.start <- max(start.times, na.rm=T)
+      earliest.end <- min(end.times, na.rm=T)
+      labeled.intervals$audio.start[date.idx] <- latest.start
+      labeled.intervals$audio.end[date.idx] <- earliest.end
     }
     
-    #compute k index for each permutation
+    #if there are any intervals that don't contain any time, remove from labeled.intervals and inds.present, and output a message
+    empty.intervals <- which(labeled.intervals$audio.start >= labeled.intervals$audio.end)
+    if(length(empty.intervals)>0){
+      print(paste('The interval for date', dates[empty.intervals], 'ends before it starts - removing'))
+      labeled.intervals <- labeled.intervals[-empty.intervals,]
+      inds.present <- inds.present[-empty.intervals,]
+      dates <- dates[-empty.intervals]
+    }
+    
+    #filter to only focal calls
+    calls <- calls.all[which(calls.all$focalType == 'F'),]
+    
+    #filter to only calls you want to analyze - currently close calls (cc) including cc hybrids
+    calls.include <- calls[grep('cc',calls$callType),]
+    
+    #filter to only include calls within the recording intervals specified by date.intervals
+    include.idxs <- c()
+    for(date.idx in 1:length(dates)){
+      include.idxs <- c(include.idxs, labeled.intervals$audio.start[date.idx]:labeled.intervals$audio.end[date.idx])
+    }
+    calls.include <- calls.include[which(calls.include$time.idx %in% include.idxs),]
+    
+    #-----------COMPUTE K STAT IN REAL VS RANDOMIZED DATA -----
+    
+    K.data <- num.data <- denom.data <- matrix(NA, nrow = length(dist.windows), ncol = length(time.windows))
+    print('computing K for real data')
+    timestamp()
     for(r in 1:length(dist.windows)){
       for(t in 1:length(time.windows)){
-        out <- compute_Knox_index(calls.include, allX_rand, allY_rand, dist.windows[r], time.windows[t])
-        K.rand[r,t,n] <- out$K
-        num.rand[r,t,n] <- out$num
-        denom.rand[r,t,n] <- out$denom
+        
+        #compute K for the real data
+        out <- compute_Knox_index(calls.include, allX, allY, dist.windows[r], time.windows[t])
+        K.data[r,t] <- out$K
+        num.data[r,t] <- out$num
+        denom.data[r,t] <- out$denom
+        
       }
-    }  
+    }
     
+    #Randomizations - randomizing individuals on each day, only within individuals present on that day
+    print('computing K for randomizations')
+    timestamp()
+    K.rand <- num.rand <- denom.rand <- array(NA, dim = c(length(dist.windows), length(time.windows), n.rands))
+    for(n in 1:n.rands){
+      print(paste0('randomization ', n, '/', n.rands))
+      allX_rand <- allX
+      allY_rand <- allY
+      
+      for(date.idx in 1:length(dates)){
+        inds.pres.date <- which(inds.present[date.idx,])
+        n.matches <- 10
+        while(n.matches > 0){
+          permute.idxs <- sample(inds.pres.date, replace=F)
+          n.matches <- sum(permute.idxs == inds.pres.date)
+        }
+        
+        #replace GPS data with permuted data, for that date interval
+        for(ind in 1:length(inds.pres.date)){
+          time.idxs.date <- labeled.intervals$audio.start[date.idx]:labeled.intervals$audio.end[date.idx]
+          allX_rand[inds.pres.date[ind], time.idxs.date] <- allX[permute.idxs[ind], time.idxs.date]
+          allY_rand[inds.pres.date[ind], time.idxs.date] <- allY[permute.idxs[ind], time.idxs.date]
+        }
+      }
+      
+      #compute k index for each permutation
+      for(r in 1:length(dist.windows)){
+        for(t in 1:length(time.windows)){
+          out <- compute_Knox_index(calls.include, allX_rand, allY_rand, dist.windows[r], time.windows[t])
+          K.rand[r,t,n] <- out$K
+          num.rand[r,t,n] <- out$num
+          denom.rand[r,t,n] <- out$denom
+        }
+      }  
+      
+      
+    }
     
+    timestamp()
+    
+    #---------Calculate dK-----
+    #dK gives the additional fraction within a certain spatial 'ring'
+    #It is calculated by taking the total number of pairs of events within the time window and distance R
+    #and subtracting the number of pairs of events within the time window and distance R_previous (the previous bin)
+    #This value ('dnum' for 'difference in numberator') is then normalized by dividing by the total number of events in that time window (the denominator)
+    # dnum.data <- num.data
+    # dnum.data[2:dim(K.data)[1],] <- num.data[2:(dim(K.data)[1]),] - num.data[1:(dim(K.data)[1]-1),]
+    # dK.data <- dnum.data / denom.data
+    # 
+    # dnum.rand <- num.rand
+    # dnum.rand[2:dim(K.data)[1],,] <- num.rand[2:(dim(K.data)[1]),,] - num.rand[1:(dim(K.data)[1]-1),,]
+    # dK.rand <- dnum.rand / denom.rand
+    
+    #--------Calculate dK / dA and dK / dt -----
+    #dK / dA (r,t) is the spatial derivative of K, evaluated at time lag t
+    #and distance r.
+    #It gives the increase in number of pairs of calls captured when you 
+    #epxand the spatial range from r to r + dr, divided by the area of the "ring"
+    #between r and r + dr and the number of seconds elapsed t.
+    #units of dK / dA are pairs of calls / sec / m^2. It is calculated by taking
+    #the difference in rows of num.data and dividing this by the area (A) of 
+    #the corresponding ring pi((r+dr)^2 - r^2) and by the time bin t.
+    
+    #dK / dt (r,t) is the temporal derivative of K, evaluated at time lag t
+    #and radius r.
+    #It gives the increase in pairs of calls for a given radius r when you
+    #increase the time window from t to t + dt.
+    #Units of dK / dt are pairs of calls / sec / m^2. It is calculated by 
+    #taking the difference in columns of num.data and dividing this by dt 
+    #and by the area of the current circle pi*r^2
+    
+    #rows = distances
+    #cols = times
+    #third dim = permutation number
+    
+    #calculate circle areas and convert to a matrix (for data) and array (for randomizations)
+    circle.areas <- pi*dist.windows^2
+    circle.areas.mat <- matrix(rep(circle.areas, length(time.windows)), nrow = length(dist.windows), ncol = length(time.windows))
+    circle.areas.array <- array(rep(circle.areas.mat, n.rands), dim = c(length(dist.windows), length(time.windows), n.rands))
+    
+    #construct a time matrix
+    time.windows.mat <- matrix(rep(time.windows, each = length(dist.windows)), nrow = length(dist.windows), ncol = length(time.windows))
+    time.windows.array <- array(rep(time.windows.mat, n.rands), dim = c(length(dist.windows), length(time.windows), n.rands))
+    
+    #calculate differences between circle areas and store in a matrix / array
+    dA.mat <- rbind(circle.areas.mat[1,], (circle.areas.mat[2:nrow(circle.areas.mat),] - circle.areas.mat[1:(nrow(circle.areas.mat)-1)]))
+    dA.array <- array(rep(dA.mat, n.rands), dim = c(length(dist.windows), length(time.windows), n.rands))
+    
+    #calculate dt and store in a matrix / array
+    dt.mat <- cbind(time.windows.mat[,1], time.windows.mat[,2:ncol(time.windows.mat)] - time.windows.mat[,1:(ncol(time.windows.mat)-1)])
+    dt.array <- array(rep(dt.mat, n.rands), dim = c(length(dist.windows), length(time.windows), n.rands))
+    
+    #Calculate the derivatives
+    #dKdA i.e. partial derivative with respect to area (distance)
+    dKdA.data <- (rbind(num.data[1,],num.data[2:nrow(num.data),] - num.data[1:(nrow(num.data)-1),]))/
+      (dA.mat * time.windows.mat)
+    dKdA.rand <- array(NA, dim = dim(num.rand))
+    dKdA.rand[1,,] <- num.rand[1,,] / 
+      (dA.array[1,,] * time.windows.array[1,,])
+    dKdA.rand[2:nrow(num.data),,] <- (num.rand[2:nrow(num.data),,] - num.rand[1:(nrow(num.data)-1),,])/
+      (dA.array[2:nrow(num.data),,] * time.windows.array[2:nrow(num.data),,])
+    
+    #dKdt i.e. partial derivative with respect to time
+    dKdt.data <- (cbind(num.data[,1],num.data[,2:ncol(num.data)] - num.data[,1:(ncol(num.data)-1)]))/
+      (circle.areas.mat * dt.mat)
+    dKdt.rand <- array(NA, dim = dim(num.rand))
+    dKdt.rand[,1,] <- num.rand[,1,] / 
+      (circle.areas.array[,1,] * time.windows.array[,1,])
+    dKdt.rand[,2:ncol(num.data),] <- (num.rand[,2:ncol(num.data),] - num.rand[,1:(ncol(num.data)-1),])/
+      (dA.array[,2:ncol(num.data),] * time.windows.array[,2:ncol(num.data),])
+    
+    save(list=c('session','dist.windows','time.windows','dKdA.data','dKdA.rand','dKdt.data','dKdt.rand','num.data','num.rand','denom.data','denom.rand','n.rands'), file = paste0(outdir,'cc_clustering_',session,'.RData'))
+  
   }
-  
-  timestamp()
-  
-  #---------Calculate dK-----
-  #dK gives the additional fraction within a certain spatial 'ring'
-  #It is calculated by taking the total number of pairs of events within the time window and distance R
-  #and subtracting the number of pairs of events within the time window and distance R_previous (the previous bin)
-  #This value ('dnum' for 'difference in numberator') is then normalized by dividing by the total number of events in that time window (the denominator)
-  # dnum.data <- num.data
-  # dnum.data[2:dim(K.data)[1],] <- num.data[2:(dim(K.data)[1]),] - num.data[1:(dim(K.data)[1]-1),]
-  # dK.data <- dnum.data / denom.data
-  # 
-  # dnum.rand <- num.rand
-  # dnum.rand[2:dim(K.data)[1],,] <- num.rand[2:(dim(K.data)[1]),,] - num.rand[1:(dim(K.data)[1]-1),,]
-  # dK.rand <- dnum.rand / denom.rand
-  
-  #--------Calculate dK / dA and dK / dt -----
-  #dK / dA (r,t) is the spatial derivative of K, evaluated at time lag t
-  #and distance r.
-  #It gives the increase in number of pairs of calls captured when you 
-  #epxand the spatial range from r to r + dr, divided by the area of the "ring"
-  #between r and r + dr and the number of seconds elapsed t.
-  #units of dK / dA are pairs of calls / sec / m^2. It is calculated by taking
-  #the difference in rows of num.data and dividing this by the area (A) of 
-  #the corresponding ring pi((r+dr)^2 - r^2) and by the time bin t.
-  
-  #dK / dt (r,t) is the temporal derivative of K, evaluated at time lag t
-  #and radius r.
-  #It gives the increase in pairs of calls for a given radius r when you
-  #increase the time window from t to t + dt.
-  #Units of dK / dt are pairs of calls / sec / m^2. It is calculated by 
-  #taking the difference in columns of num.data and dividing this by dt 
-  #and by the area of the current circle pi*r^2
-  
-  #rows = distances
-  #cols = times
-  #third dim = permutation number
-  
-  #calculate circle areas and convert to a matrix (for data) and array (for randomizations)
-  circle.areas <- pi*dist.windows^2
-  circle.areas.mat <- matrix(rep(circle.areas, length(time.windows)), nrow = length(dist.windows), ncol = length(time.windows))
-  circle.areas.array <- array(rep(circle.areas.mat, n.rands), dim = c(length(dist.windows), length(time.windows), n.rands))
-  
-  #construct a time matrix
-  time.windows.mat <- matrix(rep(time.windows, each = length(dist.windows)), nrow = length(dist.windows), ncol = length(time.windows))
-  time.windows.array <- array(rep(time.windows.mat, n.rands), dim = c(length(dist.windows), length(time.windows), n.rands))
-  
-  #calculate differences between circle areas and store in a matrix / array
-  dA.mat <- rbind(circle.areas.mat[1,], (circle.areas.mat[2:nrow(circle.areas.mat),] - circle.areas.mat[1:(nrow(circle.areas.mat)-1)]))
-  dA.array <- array(rep(dA.mat, n.rands), dim = c(length(dist.windows), length(time.windows), n.rands))
-  
-  #calculate dt and store in a matrix / array
-  dt.mat <- cbind(time.windows.mat[,1], time.windows.mat[,2:ncol(time.windows.mat)] - time.windows.mat[,1:(ncol(time.windows.mat)-1)])
-  dt.array <- array(rep(dt.mat, n.rands), dim = c(length(dist.windows), length(time.windows), n.rands))
-  
-  #Calculate the derivatives
-  #dKdA i.e. partial derivative with respect to area (distance)
-  dKdA.data <- (rbind(num.data[1,],num.data[2:nrow(num.data),] - num.data[1:(nrow(num.data)-1),]))/
-    (dA.mat * time.windows.mat)
-  dKdA.rand <- array(NA, dim = dim(num.rand))
-  dKdA.rand[1,,] <- num.rand[1,,] / 
-    (dA.array[1,,] * time.windows.array[1,,])
-  dKdA.rand[2:nrow(num.data),,] <- (num.rand[2:nrow(num.data),,] - num.rand[1:(nrow(num.data)-1),,])/
-    (dA.array[2:nrow(num.data),,] * time.windows.array[2:nrow(num.data),,])
-  
-  #dKdt i.e. partial derivative with respect to time
-  dKdt.data <- (cbind(num.data[,1],num.data[,2:ncol(num.data)] - num.data[,1:(ncol(num.data)-1)]))/
-    (circle.areas.mat * dt.mat)
-  dKdt.rand <- array(NA, dim = dim(num.rand))
-  dKdt.rand[,1,] <- num.rand[,1,] / 
-    (circle.areas.array[,1,] * time.windows.array[,1,])
-  dKdt.rand[,2:ncol(num.data),] <- (num.rand[,2:ncol(num.data),] - num.rand[,1:(ncol(num.data)-1),])/
-    (dA.array[,2:ncol(num.data),] * time.windows.array[,2:ncol(num.data),])
-  
-  save(list=c('session','dist.windows','time.windows','dKdA.data','dKdA.rand','dKdt.data','dKdt.rand','num.data','num.rand','denom.data','denom.rand','n.rands'), file = paste0(outdir,'cc_clustering_',session,'.RData'))
-
 }
 
 #--------------PLOTTING---------
