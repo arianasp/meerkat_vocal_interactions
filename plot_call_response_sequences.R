@@ -17,7 +17,7 @@ load(filename)
 #---PLOT 1: Spiking neurons example
 if(plot.spiking.neurons){
   i <- 2
-  n.neurons <- 200
+  n.neurons <- 10
   xmax <- 10
   isna <- is.na(rowSums(callresp.seqs))
   idxs <- which((callresp$distance >= dist.bins[i-1]) & (callresp$distance < dist.bins[i]) & !isna)

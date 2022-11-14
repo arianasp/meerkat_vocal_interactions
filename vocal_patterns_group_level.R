@@ -329,9 +329,6 @@ for(sess.idx in 1:length(sessions)){
    
   call.rate.vs.nn.mats[[sess.idx]] <- call.rate.vs.nn.mats.sess
   
-  #---Are calls clustered in space (are there actually hotspots) more than expected based on pure meerkat density?
-  #Calculate the 
-  
 }
 
 call.position.data <- list(cc.x.means = cc.x.means, cc.y.means = cc.y.means, 

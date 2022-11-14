@@ -55,7 +55,7 @@ codedir <- '~/Dropbox/code_ari/meerkat_vocal_interactions'
 savedir <- '~/Dropbox/meerkats/meerkats_shared/ari/vocal_interactions/data/call_response'
 
 #filename of general meerkat functions
-general.funcs.filename <- '~/Dropbox/code_ari/move_comm_analysis/general/meerkat_functions.R'
+general.funcs.filename <- 'meerkat_functions.R'
 
 #bandwidth of smoothing kernel (default 0.1)
 bw <- .05
@@ -67,10 +67,10 @@ max.lag <- 30
 step <- .02
 
 #list of call types to include in the set of calls by the initial caller (which determines the 0 point of the correlogram)
-caller.calltypes <- c('sn') 
+caller.calltypes <- c('cc') 
 
 #list of call types of include in the set of calls by the responder (determines the curve in the correlogram)
-responder.calltypes <- c('sn')
+responder.calltypes <- c('cc')
 
 #what to trigger on (call begin or call end)
 trigger.on <- 'begin'

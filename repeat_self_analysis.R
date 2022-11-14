@@ -2,7 +2,7 @@
 #It was taken from the original vocal_interactions_across_space_and_time script and needs to be integrated into a subsequent script to work (after computing call response sequences)
 
 #------PARAMETERS------
-repeat.dist.thresh <- 10
+repeat.dist.thresh <- 5
 
 #-----FILENAME------
 filename <- '~/Dropbox/meerkats/meerkats_shared/ari/vocal_interactions/data/call_response/callresp_cc_cc_bw0.05.RData'
@@ -22,17 +22,17 @@ callresp$nextcall.t0 <- NA
 callresp$nextcall.caller <- NA
 callresp$nextcall.type <- NA
 
-for(i in 1:nrow(callresp.filt)){
+for(i in 1:nrow(callresp)){
   
   #get time of the focal call
-  t0 <- callresp.filt$t0[i] 
+  t0 <- callresp$t0[i] 
   
   #time index in timeLine
   t0.round <- round(t0)
   t.idx <- which(timeline.numeric == t0.round)
   
   #get individual index
-  ind.idx <- which(indInfo$code == callresp.filt$caller[i])
+  ind.idx <- which(indInfo$code == callresp$caller[i])
   
   #distances to all other individuals present
   dists <- sqrt((allX[,t.idx] - allX[ind.idx,t.idx])^2 + (allY[,t.idx] - allY[ind.idx,t.idx])^2)
@@ -44,7 +44,7 @@ for(i in 1:nrow(callresp.filt)){
   inds.in.range.idxs <- which(dists < repeat.dist.thresh)
   
   #store number of individuals in range
-  callresp.filt$n.inds.in.range[i] <- length(inds.in.range.idxs)
+  callresp$n.inds.in.range[i] <- length(inds.in.range.idxs)
   
   #if there are some indivudals in range, find the most recent call from any of them of any type, and next call of a type in responder.calltypes  
   if(length(inds.in.range.idxs)>0){
@@ -70,14 +70,14 @@ for(i in 1:nrow(callresp.filt)){
     if(length(correct.calls.after)>0){
       correct.calls.after.numeric <- as.numeric(correct.calls.after, tz = 'UTC')
       next.call.time.inds.in.range <- min(correct.calls.after.numeric)
-      callresp.filt$nextcall.t0[i] <- as.numeric(next.call.time.inds.in.range)
+      callresp$nextcall.t0[i] <- as.numeric(next.call.time.inds.in.range)
       next.call.inds.in.range.idx <- which(calls.inds.in.range$t0 == next.call.time.inds.in.range)[1]
-      callresp.filt$nextcall.caller[i] <- calls.inds.in.range$ind[next.call.inds.in.range.idx]
-      callresp.filt$nextcall.type[i] <- calls.inds.in.range$callSimple[next.call.inds.in.range.idx]
+      callresp$nextcall.caller[i] <- calls.inds.in.range$ind[next.call.inds.in.range.idx]
+      callresp$nextcall.type[i] <- calls.inds.in.range$callSimple[next.call.inds.in.range.idx]
     }
   }
 }
 
-callresp.filt$dt.prev <- callresp.filt$t0 - callresp.filt$prevcall.t0
-callresp.filt$dt.next <- callresp.filt$nextcall.t0 - callresp.filt$t0
+callresp$dt.prev <- callresp$t0 - callresp$prevcall.t0
+callresp$dt.next <- callresp$nextcall.t0 - callresp$t0
 

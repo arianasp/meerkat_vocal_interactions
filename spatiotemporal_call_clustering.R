@@ -36,6 +36,9 @@ dist.windows <- c(2,4,6,8,10,15,20,25,30,40,60,80,100)
 #number of randomizations
 n.rands <- 100
 
+#call type
+callType <- 'cc'
+
 #list of sessions to use
 sessions <- c('HM2017', 'HM2019', 'L2019')
 
@@ -43,6 +46,7 @@ sessions <- c('HM2017', 'HM2019', 'L2019')
 audiodir <- '~/Dropbox/code_ari/Meerkat_leadership_hackathon/data/acoustic/'
 gpsdir <- '~/Dropbox/code_ari/Meerkat_leadership_hackathon/data/movement/'
 outdir <- '~/Dropbox/meerkats/meerkats_shared/ari/vocal_interactions/data/call_clustering/'
+plotdir <- paste0('~/Dropbox/meerkats/meerkats_shared/ari/vocal_interactions/plots/',callType,'_call_clustering/')
 
 #path to Baptiste's useful functions library
 useful.fun.path <- '~/Dropbox/code_ari/Meerkat_leadership_hackathon/scripts/useful_functions.R'
@@ -212,8 +216,8 @@ if(!load.precomputed.data){
     #filter to only focal calls
     calls <- calls.all[which(calls.all$focalType == 'F'),]
     
-    #filter to only calls you want to analyze - currently close calls (cc) including cc hybrids
-    calls.include <- calls[grep('cc',calls$callType),]
+    #filter to only calls you want to analyze - currently close calls (cc) including cc hybrids or short notes (sn)
+    calls.include <- calls[grep(callType,calls$callType),]
     
     #filter to only include calls within the recording intervals specified by date.intervals
     include.idxs <- c()
@@ -350,7 +354,7 @@ if(!load.precomputed.data){
     dKdt.rand[,2:ncol(num.data),] <- (num.rand[,2:ncol(num.data),] - num.rand[,1:(ncol(num.data)-1),])/
       (dA.array[,2:ncol(num.data),] * time.windows.array[,2:ncol(num.data),])
     
-    save(list=c('session','dist.windows','time.windows','dKdA.data','dKdA.rand','dKdt.data','dKdt.rand','num.data','num.rand','denom.data','denom.rand','n.rands'), file = paste0(outdir,'cc_clustering_',session,'.RData'))
+    save(list=c('session','dist.windows','time.windows','dKdA.data','dKdA.rand','dKdt.data','dKdt.rand','num.data','num.rand','denom.data','denom.rand','n.rands'), file = paste0(outdir,callType,'_clustering_',session,'.RData'))
   
   }
 }
@@ -364,20 +368,74 @@ if(generate.plots){
     session <- sessions[sess.idx]
     
     setwd(outdir)
-    load(paste0(outdir,'cc_clustering_',session,'.RData'))
+    load(paste0(outdir,callType, '_clustering_',session,'.RData'))
     
-    #dKdA vs distance (lines = time)
-    quartz(height = 8, width = 8)
+    setwd(plotdir)
+    
+    #NEW MATRICES - later move this up to the previous section, but here for now for plotting purposes
+    
+    #---This stuff will not be needed because it's computed above anyway
+    #calculate circle areas and convert to a matrix (for data) and array (for randomizations)
+    circle.areas <- pi*dist.windows^2
+    circle.areas.mat <- matrix(rep(circle.areas, length(time.windows)), nrow = length(dist.windows), ncol = length(time.windows))
+    circle.areas.array <- array(rep(circle.areas.mat, n.rands), dim = c(length(dist.windows), length(time.windows), n.rands))
+    
+    #construct a time matrix
+    time.windows.mat <- matrix(rep(time.windows, each = length(dist.windows)), nrow = length(dist.windows), ncol = length(time.windows))
+    time.windows.array <- array(rep(time.windows.mat, n.rands), dim = c(length(dist.windows), length(time.windows), n.rands))
+    
+    #calculate differences between circle areas and store in a matrix / array
+    dA.mat <- rbind(circle.areas.mat[1,], (circle.areas.mat[2:nrow(circle.areas.mat),] - circle.areas.mat[1:(nrow(circle.areas.mat)-1)]))
+    dA.array <- array(rep(dA.mat, n.rands), dim = c(length(dist.windows), length(time.windows), n.rands))
+    
+    #----end of stuff that won't be needed
+    
+    #---new stuff that will be needed to move up
+    #calculate dt and store in a matrix / array
+    dt.mat <- cbind(time.windows.mat[,1], time.windows.mat[,2:ncol(time.windows.mat)] - time.windows.mat[,1:(ncol(time.windows.mat)-1)])
+    dt.array <- array(rep(dt.mat, n.rands), dim = c(length(dist.windows), length(time.windows), n.rands))
+    #get new matrix / array, dKdAdt.data and dKdAdt.rand
+    #this is the spatial and temporal derivative, in other words, 
+    #each cell represents the density of pairs of calls (per area and per second)
+    #that were given within a ring at R to R + dr and within the time window t to t + dt
+    #It differs from dkdA in that the time windows only cover t to t + dt as opposed to covering all of t + dt
+    #so it is more of any instantaneous temporal estimate of the clustering at that spatial scale as opposed to
+    #"smeared" over a whole large time window
+    #rows = distances
+    #cols = times
+    #third dim = permutation number
+    
+    #take the row (distance) differences in number of call pairs
+    rowdiffs.data <- (rbind(num.data[1,],num.data[2:nrow(num.data),] - num.data[1:(nrow(num.data)-1),]))
+    rowdiffs.rand <- array(NA, dim = dim(num.rand))
+    rowdiffs.rand[1,,] <- num.rand[1,,]
+    rowdiffs.rand[2:nrow(num.data),,] <- (num.rand[2:nrow(num.data),,] - num.rand[1:(nrow(num.data)-1),,])
+    
+    #then take the column (time) differences in number of call pairs
+    coldiffs.data <- (cbind(rowdiffs.data[,1],rowdiffs.data[,2:ncol(rowdiffs.data)] - rowdiffs.data[,1:(ncol(rowdiffs.data)-1)]))
+    coldiffs.rand <- array(NA, dim = dim(rowdiffs.rand))
+    coldiffs.rand[,1,] <- rowdiffs.rand[,1,]
+    coldiffs.rand[,2:ncol(rowdiffs.rand),] <- (rowdiffs.rand[,2:ncol(rowdiffs.rand),] - rowdiffs.rand[,1:(ncol(rowdiffs.rand)-1),])
+    
+    #then normalize
+    dKdAdt.data <- coldiffs.data / (dA.mat * dt.mat)
+    dKdAdt.rand <- coldiffs.rand / (dA.array * dt.array)
+    
+    #---end new stuff
+    
+    #dKdAdt vs distance (lines = time)
+    png(filename = paste0('dKdAdt_vs_dist_',session,'.png'), units = 'px', height = 800, width = 800)
     par(mfrow=c(1,1), mar = c(6,6,2,1))
     cols <- rev(viridis(length(time.windows)))
-    plot(NULL, xlim = range(dist.windows), ylim = c(0,max(dKdA.data)), cex.axis = 1.5, cex.lab = 2, xlab = 'Distance (m)', ylab = 'Clustering of calls (pairs / m^2 / sec)', log = 'x')
+    plot(NULL, xlim = range(dist.windows), ylim = c(0,max(dKdAdt.data)), cex.axis = 1.5, cex.lab = 2, xlab = 'Distance (m)', ylab = 'Clustering of calls (pairs / m^2 / sec)', log = 'x')
     for(t in 1:length(time.windows)){
-      lines(dist.windows, dKdA.data[,t], lwd=3, col = cols[t], pch = 19)
+      lines(dist.windows, dKdAdt.data[,t], lwd=3, col = cols[t], pch = 19)
     }
     legend('topright',legend = paste(time.windows,'sec'), col = cols, lty = 1, lwd = 3)
+    dev.off()
     
     #dKdA vs distance (panels = time)
-    quartz(height = 6, width = 22)
+    png(filename = paste0('dKdA_vs_dist_comparenull',session,'.png'), units = 'px', height = 600, width = 2200)
     par(mfrow=c(1,length(time.windows)), mar = c(6,6,2,1))
     for(t in 1:length(time.windows)){
       plot(NULL, xlim = range(dist.windows), ylim = c(0,max(dKdA.data)), cex.axis = 1.5, cex.lab = 2, xlab = 'Distance (m)', ylab = 'Clustering of calls (dK / area)', main = paste('dt =', time.windows[t],'sec'), log = 'x')
@@ -389,9 +447,40 @@ if(generate.plots){
       lines(dist.windows, dKdA.data[,t], lwd=2, col = 'red', pch = 19)
       #points(dist.windows, dK.data[,t], cex = 2, col = 'red', pch = 19)
     }
+    dev.off()
     
     #dKdt vs distance (panels = time)
-    quartz(height = 6, width = 22)
+    png(filename = paste0('dKdt_vs_dist_comparenull',session,'.png'), units = 'px', height = 600, width = 2200)
+    par(mfrow=c(1,length(time.windows)), mar = c(6,6,2,1))
+    for(t in 1:length(time.windows)){
+      plot(NULL, xlim = range(dist.windows), ylim = c(0,max(dKdt.data)), cex.axis = 1.5, cex.lab = 2, xlab = 'Distance (m)', ylab = 'Clustering of calls (dK / area)', main = paste('dt =', time.windows[t],'sec'), log = 'x')
+      abline(v = seq(5,max(dist.windows)+5,5), col = 'gray')
+      for(n in 1:n.rands){
+        lines(dist.windows, dKdt.rand[,t,n], lwd = 0.5, col = 'black')
+        #points(dist.windows, dK.rand[,t,n], cex = 0.5, col = 'black')
+      }
+      lines(dist.windows, dKdt.data[,t], lwd=2, col = 'red', pch = 19)
+      #points(dist.windows, dK.data[,t], cex = 2, col = 'red', pch = 19)
+    }
+    dev.off()
+    
+    #dK/(dAdt) vs distance (panels = time)
+    png(filename = paste0('dKdAdt_vs_dist_comparenull',session,'.png'), units = 'px', height = 600, width = 2200)
+    par(mfrow=c(1,length(time.windows)), mar = c(6,6,2,1))
+    for(t in 1:length(time.windows)){
+      plot(NULL, xlim = range(dist.windows), ylim = c(0,max(dKdAdt.data)), cex.axis = 1.5, cex.lab = 2, xlab = 'Distance (m)', ylab = 'Clustering of calls (dK / area)', main = paste('dt =', time.windows[t],'sec'), log = 'x')
+      abline(v = seq(5,max(dist.windows)+5,5), col = 'gray')
+      for(n in 1:n.rands){
+        lines(dist.windows, dKdAdt.rand[,t,n], lwd = 0.5, col = 'black')
+        #points(dist.windows, dK.rand[,t,n], cex = 0.5, col = 'black')
+      }
+      lines(dist.windows, dKdAdt.data[,t], lwd=2, col = 'red', pch = 19)
+      #points(dist.windows, dK.data[,t], cex = 2, col = 'red', pch = 19)
+    }
+    dev.off()
+    
+    #dK/(dt) vs distance (panels = time)
+    png(filename = paste0('dKdt_vs_dist_comparenull',session,'.png'), units = 'px', height = 600, width = 2200)
     par(mfrow=c(1,length(time.windows)), mar = c(6,6,2,1))
     for(t in 1:length(time.windows)){
       plot(NULL, xlim = range(dist.windows), ylim = c(0,max(dKdA.data)), cex.axis = 1.5, cex.lab = 2, xlab = 'Distance (m)', ylab = 'Clustering of calls (dK / area)', main = paste('dt =', time.windows[t],'sec'), log = 'x')
@@ -403,15 +492,17 @@ if(generate.plots){
       lines(dist.windows, dKdt.data[,t], lwd=2, col = 'red', pch = 19)
       #points(dist.windows, dK.data[,t], cex = 2, col = 'red', pch = 19)
     }
+    dev.off()
     
-    #dKdA vs time and distance, log(data / mean(null))
-    quartz(height = 8, width = 8)
+    #dKdAdt vs time and distance, log(data / mean(null))
+    png(filename = paste0('dKdAdt_vs_dist_and_time_comparenull_logratio',session,'.png'), units = 'px', height = 800, width = 800)
     par(mfrow=c(1,1), cex.main = 2, cex.lab=2, mar = c(5,5,1,1), cex.axis = 1.5)
-    dKdA.rand.mean <- apply(dKdA.rand, c(1,2), mean)
-    ratio <- log(dKdA.data / dKdA.rand.mean, base = 10)
+    dKdAdt.rand.mean <- apply(dKdAdt.rand, c(1,2), mean)
+    ratio <- log(dKdAdt.data / dKdAdt.rand.mean, base = 10)
     image.plot(ratio, zlim = c(-max(ratio,na.rm=T),max(ratio,na.rm=T)), col = bluered(256), xlab = 'Distance (m)', ylab = 'Time (sec)', xaxt = 'n', yaxt = 'n')
     axis(side = 1, at = seq(0,1,length.out = length(dist.windows)), labels = dist.windows)
     axis(side = 2, at = seq(0,1,length.out = length(time.windows)), labels = time.windows)
+    dev.off()
   }
 }
     
