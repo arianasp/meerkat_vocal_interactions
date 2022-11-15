@@ -1,6 +1,9 @@
 #-------------------FILENAME--------------------
 filename <- '~/Dropbox/meerkats/meerkats_shared/ari/vocal_interactions/data/call_response/callresp_cc_cc_bw0.05.RData'
 
+#data directory where ind info is stored
+ind_info_dir <- '/Volumes/EAS_shared/meerkat/working/METADATA/'
+
 #------------------PARAMETERS------------------
 dist.bins <- c(0,2,5,10,50)
 
@@ -9,8 +12,29 @@ plot.spiking.neurons <- F
 plot.call.resp.all <- T
 plot.self.resp.all <- T
 
+#caller age classes
+adult_classes <- c('DominantF','DominantM','Yearling','Sub-Adult','Adult')
+juv_classes <- c('Juvenile')
+
 #--------------------LOAD DATA------------------
 load(filename)
+
+#individual info
+groupyears <- unique(callresp$groupyear)
+ind_info <- data.frame()
+for(g in 1:length(groupyears)){
+  groupyear <- groupyears[g]
+  tmp <- read.csv(paste(groupyear,'_INDIVIDUAL_INFO.txt',sep=''),sep='\t')
+  tmp$groupyear <- groupyear
+  tmp$groupyear_ind <- paste(tmp$groupyear, tmp$code, sep='_')
+  ind_info <- rbind(ind_info, tmp)
+}
+
+#add columns to specify age class
+callresp$groupyear_caller <- paste(callresp$groupyear,callresp$caller, sep='_')
+callresp$groupyear_responder <- paste(callresp$groupyear, callresp$responder, sep = '_')
+callresp$age_caller <- ind_info$status[match(callresp$groupyear_caller, ind_info$groupyear_ind)]
+callresp$age_responder <- ind_info$status[match(callresp$groupyear_responder, ind_info$groupyear_ind)]
 
 #---------------------PLOTTING-------------------
 
@@ -25,19 +49,24 @@ if(plot.spiking.neurons){
   
   quartz(height = 8, width = 4)
   plot(NULL, xlim = c(-xmax, xmax), ylim = c(0, n.neurons), xlab = "Time (sec)", ylab = 'Calls')
-  for(j in 1:n.neurons){
+  for(meerj in 1:n.neurons){
     lines(tseq, callresp.seqs[idxs.sub[j],] + j )
   }
   abline(v = 0, col = 'blue')
 }
 
-#---PLOT 2: Call response dynamics on average, between two individuals
-
+#CALL RESPONSE PLOTS
 if(plot.call.resp.all){
+  #---PLOT 2: Call response dynamics on average, between two adult individuals
+  #At different spatial scales
   #collect the data
   mean.call.rates <- matrix(NA,nrow=length(dist.bins)-1, ncol = length(tseq))
   for(i in 2:length(dist.bins)){
-    idxs <- which((callresp$distance >= dist.bins[i-1]) & (callresp$distance < dist.bins[i]) & (callresp$caller != callresp$responder))
+    idxs <- which((callresp$distance >= dist.bins[i-1]) &
+                    (callresp$distance < dist.bins[i]) & 
+                    (callresp$caller != callresp$responder) & 
+                    (callresp$age_caller %in% adult_classes) & 
+                    (callresp$age_responder %in% adult_classes))
     mean.call.rates[i-1,] <- colMeans(callresp.seqs[idxs,],na.rm=T)
   }
   
@@ -48,25 +77,86 @@ if(plot.call.resp.all){
   ymax <- max(mean.call.rates)+.01
   cols <- viridis(nrow(mean.call.rates))
   for(i in 1:nrow(mean.call.rates)){
-    plot(NULL, xlim=c(-2,2),ylim=c(0,ymax),xlab='Time lag (sec)', ylab = 'Call rate', cex.axis=1.5,cex.lab=1.5, main = paste(dist.bins[i],'-', dist.bins[i+1],'m',sep=' '))
+    plot(NULL, xlim=c(-5,5),ylim=c(0,ymax),xlab='Time lag (sec)', ylab = 'Call rate', cex.axis=1.5,cex.lab=1.5, main = paste(dist.bins[i],'-', dist.bins[i+1],'m',sep=' '))
     abline(v = seq(-3,3,.1), col = 'gray', lwd = 0.5)
     abline(v=0, lty=1, col = 'black')
     lines(tseq, mean.call.rates[i,], col = cols[i], lwd = 2, type = 'l', )
   }
+
+  #---PLOT 3: Call response dynamics across all distances 
+  #By age class 
+  
+  #adult vs adult
+  idxs <- which((callresp$caller != callresp$responder) & 
+                  (callresp$age_caller %in% adult_classes) & 
+                  (callresp$age_responder %in% adult_classes))
+  mean.call.rates.adult.adult <- colMeans(callresp.seqs[idxs,],na.rm=T)
+  
+  #juv vs juv
+  idxs <- which((callresp$caller != callresp$responder) & 
+                  (callresp$age_caller %in% juv_classes) & 
+                  (callresp$age_responder %in% juv_classes))
+  mean.call.rates.juv.juv <- colMeans(callresp.seqs[idxs,],na.rm=T)
+  
+  #adult caller, juv responder
+  idxs <- which((callresp$caller != callresp$responder) & 
+                  (callresp$age_caller %in% adult_classes) & 
+                  (callresp$age_responder %in% juv_classes))
+  mean.call.rates.adult.juv <- colMeans(callresp.seqs[idxs,],na.rm=T)
+
+  #juv caller, adult responder
+  idxs <- which((callresp$caller != callresp$responder) & 
+                  (callresp$age_caller %in% juv_classes) & 
+                  (callresp$age_responder %in% adult_classes))
+  mean.call.rates.juv.adult <- colMeans(callresp.seqs[idxs,],na.rm=T)
+  
+  #plot
+  quartz(height = 8, width = 12)
+  par(mfrow=c(1,2))
+  par(mar=c(8,6,3,1))
+  ymax_adult <- .05
+  ymax_juv <- 0.32
+  plot(NULL, xlim=c(-2,2),ylim=c(0,ymax_adult),xlab='Time lag (sec)', ylab = 'Call rate', cex.axis=1.5,cex.lab=1.5, main = 'All distances')
+  abline(v = seq(-3,3,.1), col = 'gray', lwd = 0.5)
+  abline(v=0, lty=1, col = 'black')
+  lines(tseq, mean.call.rates.adult.adult, col = 'red', lwd = 3, type = 'l', lty = 1)
+  lines(tseq, mean.call.rates.juv.adult, col = 'red', lwd = 3, type = 'l', lty = 3)
+  legend('bottomleft', col = c('red','red'), lty = c(1, 3), lwd = 3, legend = c('Adult response to Adult', 'Adult response to Juvenile'), bg = 'white')
+  
+  plot(NULL, xlim=c(-2,2),ylim=c(0,ymax_juv),xlab='Time lag (sec)', ylab = 'Call rate', cex.axis=1.5,cex.lab=1.5, main = 'All distances')
+  abline(v = seq(-3,3,.1), col = 'gray', lwd = 0.5)
+  abline(v=0, lty=1, col = 'black')
+  lines(tseq, mean.call.rates.juv.juv, col = 'black', lwd = 3, type = 'l', lty = 3)
+  lines(tseq, mean.call.rates.adult.juv, col = 'black', lwd = 3, type = 'l', lty = 1)
+  legend('bottomleft',col = c('black','black'), lty = c(1, 3), lwd = 3, legend = c('Juvenile response to Adult','Juvenile response to Juvenile'), bg = 'white')
 }
 
-#---PLOT 3: Self-reply dynamics (after how long do individuals repeat themselves?)
+#---PLOT 4: Self-reply dynamics (after how long do individuals repeat themselves?) - adult vs juv
 if(plot.self.resp.all){
-  idxs <- which(callresp$caller == callresp$responder)
-  self.reply.rates <- colMeans(callresp.seqs[idxs,],na.rm=T)
+  idxs.adult <- which(callresp$caller == callresp$responder & callresp$age_responder %in% adult_classes)
+  idxs.juv <- which(callresp$caller == callresp$responder & callresp$age_responder %in% juv_classes)
+  self.reply.rates.adult <- colMeans(callresp.seqs[idxs.adult,], na.rm=T)
+  self.reply.rates.juv <- colMeans(callresp.seqs[idxs.juv,], na.rm=T)
   
   #make the plot
-  quartz(height = 8, width = 8)
-  par(mar=c(6,5,1,1))
-  plot(NULL, xlim = c(-20,20), ylim = c(0,max(self.reply.rates)*1.1), lwd = 2, xlab = 'Time (s)', ylab = 'Self-reply rate', cex.axis = 1.5, cex.lab = 2)
+  quartz(height = 8, width = 12)
+  par(mfrow=c(1,2))
+  par(mar=c(8,6,3,1))
+  ymax_adult <- .05
+  ymax_juv <- 0.32
+  
+  #adult
+  plot(NULL, xlim = c(-10,10), ylim = c(0,max(self.reply.rates.adult)*1.1), lwd = 3, xlab = 'Time (s)', ylab = 'Self-reply rate - Adult', cex.axis = 1.5, cex.lab = 2)
   abline(v = seq(-20,20,1), col = 'gray', lwd = 0.5)
   abline(v=0, lty = 2)
-  lines(tseq, self.reply.rates, lwd = 2)
+  lines(tseq, self.reply.rates.adult, lwd = 3)
+  
+  plot(NULL, xlim = c(-10,10), ylim = c(0,max(self.reply.rates.juv)*1.1), lwd = 3, xlab = 'Time (s)', ylab = 'Self-reply rate - Adult', cex.axis = 1.5, cex.lab = 2)
+  abline(v = seq(-20,20,1), col = 'gray', lwd = 0.5)
+  abline(v=0, lty = 2)
+  lines(tseq, self.reply.rates.juv, lwd = 3)
+  
+  
 }
 
 

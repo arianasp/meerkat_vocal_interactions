@@ -1,3 +1,5 @@
+#TODO: FIX START / STOPS IN FIRST FOR LOOP
+
 #This script is part of an analysis that uses cross-correlation functions to explore call/response dynamics as a function time and space
 
 #The script collects up call-response sequences across all currently available datasets, for subsequent analysis
@@ -45,8 +47,8 @@
 #whether to save output
 save.output <- T
 
-#directory where data is stored
-datadir <- '~/Dropbox/meerkats/meerkats_shared/data' 
+#directory where gps data is stored for the project
+gps.datadir <- '/Volumes/EAS_shared/meerkat/working/processed/movement/'
 
 #directory where code is stored for this project
 codedir <- '~/Dropbox/code_ari/meerkat_vocal_interactions'
@@ -67,17 +69,26 @@ max.lag <- 30
 step <- .02
 
 #list of call types to include in the set of calls by the initial caller (which determines the 0 point of the correlogram)
-caller.calltypes <- c('cc') 
+caller.calltypes <- c('sn') 
 
 #list of call types of include in the set of calls by the responder (determines the curve in the correlogram)
-responder.calltypes <- c('cc')
+responder.calltypes <- c('sn')
 
 #what to trigger on (call begin or call end)
 trigger.on <- 'begin'
 
+#list of group years
+groupyears <- c('HM2017', 'HM2019', 'L2019')
+
+#file names
+#audio.file <- 'full_labelfile_conflicts_resolved.csv'
+gps.files <- paste(groupyears, 'COORDINATES_all_sessions.RData', sep = '_')
+
+audio.file <- '/Volumes/EAS_shared/meerkat/working/processed/acoustic/resolve_conflicts/all_calls_sync_resolved_with_oor_2022-11-14.csv'
+
 #store parameters in a named list
 params <- list()
-params$datadir <- datadir
+params$gps.datadir <- gps.datadir
 params$codedir <- codedir
 params$bw <- bw
 params$max.lag <- max.lag
@@ -85,18 +96,14 @@ params$step <- step
 params$caller.calltypes <- caller.calltypes
 params$responder.calltypes <- responder.calltypes
 params$trigger.on <- trigger.on
+params$groupyears <- groupyears
+params$audio.file <- audio.file
+params$gps.files <- gps.files
 
 #---------------------SETUP-----------------------
 
 #set computer time zone to UTC, to avoid stupid time zone issues
 Sys.setenv(TZ='UTC')
-
-#list of group years
-groupyears <- c('HM2017', 'HM2019', 'L2019')
-
-#file names
-audio.file <- 'full_labelfile_conflicts_resolved.csv'
-gps.files <- paste(groupyears, 'COORDINATES_all_sessions.RData', sep = '_')
 
 if(save.output){
   savename <- paste0('callresp_', caller.calltypes, '_', responder.calltypes, '_bw', bw, '.RData')
@@ -115,11 +122,10 @@ library(fields)
 timestamp()
 print('loading data')
 
-#set working directory
-setwd(datadir)
+setwd(gps.datadir)
 
 #load audio data
-calls.all <- read.csv(audio.file, header=T, sep='\t', stringsAsFactors=F)
+calls.all <- read.csv(audio.file, header=T, sep=',', stringsAsFactors=F)
 
 #load gps data
 for(i in 1:length(gps.files)){
@@ -144,7 +150,7 @@ if(!(trigger.on %in% c('begin','end'))){
 
 #convert times to POSIXlt
 calls.all$t0 <- as.POSIXlt(calls.all$t0GPS_UTC, tz = 'UTC')
-calls.all$tf <- as.POSIXlt(calls.all$tEndGPS_UTC, tz = 'UTC')
+calls.all$tf <- as.POSIXlt(calls.all$tendGPS_UTC, tz = 'UTC')
 
 #remove double-marked calls (same start and end time and same individual calling)
 dups <- which(duplicated(cbind(calls.all$ind,as.numeric(calls.all$t0),as.numeric(calls.all$tf))))
@@ -158,8 +164,12 @@ dates <- unique(calls.all$date)
 #indicate which calls are caller call type list, and which are in repsonder call type list
 calls.all$isCallerCallType <- F
 calls.all$isResponderCallType <- F
-calls.all$isCallerCallType[which(calls.all$callType %in% caller.calltypes)] <- T
-calls.all$isResponderCallType[which(calls.all$callType %in% responder.calltypes)] <- T
+calls.all$isCallerCallType[which(calls.all$type_group %in% caller.calltypes)] <- T
+calls.all$isResponderCallType[which(calls.all$type_group %in% responder.calltypes)] <- T
+print('For the caller, using all calls of braod category (type_group column):')
+print(caller.calltypes)
+print('For the responder, using all calls of braod category (type_group column):')
+print(responder.calltypes)
 
 #---------------------------MAIN-------------------------------
 #time sequence bins
@@ -174,24 +184,37 @@ for(d in 1:length(dates)){
   #get calls for that date
   calls.date <- calls.all[which(calls.all$date == date),]
   
+  #TODO: fix this to incorporate skip/skipoff and multiple start markers
   #get start and stop times for times when all are labeled - need to fix this a bit because sometimes there are multiiple start markers (e.g. VHMF010 on 20190712)
   starts <- calls.date[which(calls.date$callType %in% c('start','START')),c('ind','t0')]
   ends <- calls.date[which(calls.date$callType %in% c('stop','end','STOP','END')),c('ind','t0')]
   
+  #TODO: Fix this to better deal with missing start markers
   #for now just take the minimum 'start' for each individual as its start marker and the max end marker as its end time
-  starts <- aggregate(starts$t0,by = list(starts$ind), min)
-  ends <- aggregate(ends$t0,by = list(ends$ind), max)
+  #if missing start markers, use the first and last calls of each ind as the start, but throw a warning
+  if(nrow(starts)==0){
+    starts <- aggregate(calls.date$t0, by = list(calls.date$ind),min)
+    warning(paste('missing start markers for date', date))
+  } else{
+    starts <- aggregate(starts$t0,by = list(starts$ind), min)
+  }
+  if(nrow(ends)==0){
+    ends <- aggregate(ends$t0, by = list(ends$ind), max)
+    warning(paste('missing stop markers for date', date))
+  } else{
+    ends <- aggregate(ends$t0,by = list(ends$ind), max)
+  }
   
   #find the latest start and earliest end times to be the group start and end time
   start.all <- max(starts$x)
   end.all <- min(ends$x)
   
   #make a simple table that just contains the cc's from each individual at that date and their t0 and tf times (as numeric)
-  calls.use.date <- calls.date[which((calls.date$isCallerCallType | calls.date$isResponderCallType) & calls.date$pred_focalType == 'F'),]
+  calls.use.date <- calls.date[which((calls.date$isCallerCallType | calls.date$isResponderCallType) & calls.date$pred_focalType == F),]
   
   #append to the larger table
   if(nrow(calls.use.date)>0){
-    calls.use.date <- calls.use.date[,c('date','ind','callType','isCallerCallType','isResponderCallType','t0GPS_UTC','tEndGPS_UTC','t0','tf')]
+    calls.use.date <- calls.use.date[,c('date','ind','callType','isCallerCallType','isResponderCallType','t0GPS_UTC','tendGPS_UTC','t0','tf')]
     calls.use.date$t0 <- as.numeric(calls.use.date$t0)
     calls.use.date$tf <- as.numeric(calls.use.date$tf)
     calls.use.date$start <- as.numeric(start.all)
