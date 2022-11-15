@@ -1,5 +1,5 @@
 #-------------------FILENAME--------------------
-filename <- '~/Dropbox/meerkats/meerkats_shared/ari/vocal_interactions/data/call_response/callresp_cc_cc_bw0.05.RData'
+filename <- '~/Dropbox/meerkats/meerkats_shared/ari/vocal_interactions/data/call_response/callresp_sn_sn_bw0.05.RData'
 
 #data directory where ind info is stored
 ind_info_dir <- '/Volumes/EAS_shared/meerkat/working/METADATA/'
@@ -19,6 +19,7 @@ juv_classes <- c('Juvenile')
 #--------------------LOAD DATA------------------
 load(filename)
 
+setwd(ind_info_dir)
 #individual info
 groupyears <- unique(callresp$groupyear)
 ind_info <- data.frame()
@@ -74,10 +75,10 @@ if(plot.call.resp.all){
   quartz(height = 8, width = 12)
   par(mfrow=c(1,length(dist.bins)-1))
   par(mar=c(8,6,3,1))
-  ymax <- max(mean.call.rates)+.01
+  ymax <- max(mean.call.rates)*1.1
   cols <- viridis(nrow(mean.call.rates))
   for(i in 1:nrow(mean.call.rates)){
-    plot(NULL, xlim=c(-5,5),ylim=c(0,ymax),xlab='Time lag (sec)', ylab = 'Call rate', cex.axis=1.5,cex.lab=1.5, main = paste(dist.bins[i],'-', dist.bins[i+1],'m',sep=' '))
+    plot(NULL, xlim=c(-2,2),ylim=c(0,ymax),xlab='Time lag (sec)', ylab = 'Call rate', cex.axis=1.5,cex.lab=1.5, main = paste(dist.bins[i],'-', dist.bins[i+1],'m',sep=' '))
     abline(v = seq(-3,3,.1), col = 'gray', lwd = 0.5)
     abline(v=0, lty=1, col = 'black')
     lines(tseq, mean.call.rates[i,], col = cols[i], lwd = 2, type = 'l', )
@@ -114,8 +115,8 @@ if(plot.call.resp.all){
   quartz(height = 8, width = 12)
   par(mfrow=c(1,2))
   par(mar=c(8,6,3,1))
-  ymax_adult <- .05
-  ymax_juv <- 0.32
+  ymax_adult <- max(c(mean.call.rates.adult.adult, mean.call.rates.juv.adult))*1.1
+  ymax_juv <- max(c(mean.call.rates.juv.juv, mean.call.rates.adult.juv))*1.1
   plot(NULL, xlim=c(-2,2),ylim=c(0,ymax_adult),xlab='Time lag (sec)', ylab = 'Call rate', cex.axis=1.5,cex.lab=1.5, main = 'All distances')
   abline(v = seq(-3,3,.1), col = 'gray', lwd = 0.5)
   abline(v=0, lty=1, col = 'black')
@@ -142,16 +143,16 @@ if(plot.self.resp.all){
   quartz(height = 8, width = 12)
   par(mfrow=c(1,2))
   par(mar=c(8,6,3,1))
-  ymax_adult <- .05
-  ymax_juv <- 0.32
+  ymax_adult <- max(self.reply.rates.adult)*1.1
+  ymax_juv <- max(self.reply.rates.juv)
   
   #adult
-  plot(NULL, xlim = c(-10,10), ylim = c(0,max(self.reply.rates.adult)*1.1), lwd = 3, xlab = 'Time (s)', ylab = 'Self-reply rate - Adult', cex.axis = 1.5, cex.lab = 2)
+  plot(NULL, xlim = c(-5,5), ylim = c(0,max(self.reply.rates.adult)*1.1), lwd = 3, xlab = 'Time (s)', ylab = 'Self-reply rate - Adult', cex.axis = 1.5, cex.lab = 2)
   abline(v = seq(-20,20,1), col = 'gray', lwd = 0.5)
   abline(v=0, lty = 2)
   lines(tseq, self.reply.rates.adult, lwd = 3)
   
-  plot(NULL, xlim = c(-10,10), ylim = c(0,max(self.reply.rates.juv)*1.1), lwd = 3, xlab = 'Time (s)', ylab = 'Self-reply rate - Adult', cex.axis = 1.5, cex.lab = 2)
+  plot(NULL, xlim = c(-5,5), ylim = c(0,max(self.reply.rates.juv)*1.1), lwd = 3, xlab = 'Time (s)', ylab = 'Self-reply rate - Juvenile', cex.axis = 1.5, cex.lab = 2)
   abline(v = seq(-20,20,1), col = 'gray', lwd = 0.5)
   abline(v=0, lty = 2)
   lines(tseq, self.reply.rates.juv, lwd = 3)
