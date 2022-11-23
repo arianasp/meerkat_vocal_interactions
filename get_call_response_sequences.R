@@ -1,5 +1,3 @@
-#TODO: FIX START / STOPS IN FIRST FOR LOOP
-
 #This script is part of an analysis that uses cross-correlation functions to explore call/response dynamics as a function time and space
 
 #The script collects up call-response sequences across all currently available datasets, for subsequent analysis
@@ -50,11 +48,14 @@ save.output <- T
 #directory where gps data is stored for the project
 gps.datadir <- '/Volumes/EAS_shared/meerkat/working/processed/movement/'
 
+#direcotry where audio labeling data is stored for the project
+audio.datadir <- '/Volumes/EAS_shared/meerkat/working/processed/acoustic'
+
 #directory where code is stored for this project
 codedir <- '~/Dropbox/code_ari/meerkat_vocal_interactions'
 
 #directory of where to save results
-savedir <- '~/Dropbox/meerkats/meerkats_shared/ari/vocal_interactions/data/call_response'
+savedir <- '~/Dropbox/meerkats/results/call_interactions/'
 
 #filename of general meerkat functions
 general.funcs.filename <- 'meerkat_functions.R'
@@ -69,10 +70,10 @@ max.lag <- 30
 step <- .02
 
 #list of call types to include in the set of calls by the initial caller (which determines the 0 point of the correlogram)
-caller.calltypes <- c('sn') 
+caller.calltype <- 'cc' 
 
 #list of call types of include in the set of calls by the responder (determines the curve in the correlogram)
-responder.calltypes <- c('sn')
+responder.calltype <- 'cc'
 
 #what to trigger on (call begin or call end)
 trigger.on <- 'begin'
@@ -84,7 +85,7 @@ groupyears <- c('HM2017', 'HM2019', 'L2019')
 #audio.file <- 'full_labelfile_conflicts_resolved.csv'
 gps.files <- paste(groupyears, 'COORDINATES_all_sessions.RData', sep = '_')
 
-audio.file <- '/Volumes/EAS_shared/meerkat/working/processed/acoustic/resolve_conflicts/all_calls_sync_resolved_with_oor_2022-11-14.csv'
+audio.file <- '/Volumes/EAS_shared/meerkat/working/processed/acoustic/resolve_conflicts/foc_calls_resolved.csv'
 
 #store parameters in a named list
 params <- list()
@@ -93,8 +94,8 @@ params$codedir <- codedir
 params$bw <- bw
 params$max.lag <- max.lag
 params$step <- step
-params$caller.calltypes <- caller.calltypes
-params$responder.calltypes <- responder.calltypes
+params$caller.calltype <- caller.calltype
+params$responder.calltype <- responder.calltype
 params$trigger.on <- trigger.on
 params$groupyears <- groupyears
 params$audio.file <- audio.file
@@ -106,7 +107,7 @@ params$gps.files <- gps.files
 Sys.setenv(TZ='UTC')
 
 if(save.output){
-  savename <- paste0('callresp_', caller.calltypes, '_', responder.calltypes, '_bw', bw, '.RData')
+  savename <- paste0('callresp_', caller.calltype, '_', responder.calltype, '_bw', bw, '.RData')
 }
 
 #------------------LIBRARIES----------------------
@@ -122,11 +123,14 @@ library(fields)
 timestamp()
 print('loading data')
 
-setwd(gps.datadir)
-
-#load audio data
+#load audio data and datapresence data
+setwd(audio.datadir)
 calls.all <- read.csv(audio.file, header=T, sep=',', stringsAsFactors=F)
+for(g in 1:length(groupyears)){
+  load(paste(groupyears[g],'DATAPRESENCE_all_sessions.RData',sep='_'))
+}
 
+setwd(gps.datadir)
 #load gps data
 for(i in 1:length(gps.files)){
   load(gps.files[i])
@@ -164,12 +168,12 @@ dates <- unique(calls.all$date)
 #indicate which calls are caller call type list, and which are in repsonder call type list
 calls.all$isCallerCallType <- F
 calls.all$isResponderCallType <- F
-calls.all$isCallerCallType[which(calls.all$type_group %in% caller.calltypes)] <- T
-calls.all$isResponderCallType[which(calls.all$type_group %in% responder.calltypes)] <- T
-print('For the caller, using all calls of braod category (type_group column):')
-print(caller.calltypes)
-print('For the responder, using all calls of braod category (type_group column):')
-print(responder.calltypes)
+calls.all$isCallerCallType[grepl(caller.calltype, calls.all$callType)] <- T
+calls.all$isResponderCallType[grepl(responder.calltype, calls.all$callType)] <- T
+print('For the caller, using all calls fitting the regular expression:')
+print(caller.calltype)
+print('For the responder, using all calls fitting the regular expression:')
+print(responder.calltype)
 
 #---------------------------MAIN-------------------------------
 #time sequence bins
@@ -178,137 +182,118 @@ tseq <- seq(-max.lag, max.lag, step)
 #get together a table of all calls we are using in the analysis t0 and tf times from all individuals, as well as date and the start and end time of the labeled sequence
 calls.use <- data.frame()
 
-for(d in 1:length(dates)){
-  date <- dates[d]
+for(g in 1:length(groupyears)){
   
-  #get calls for that date
-  calls.date <- calls.all[which(calls.all$date == date),]
+  #get groupyear
+  groupyear <- groupyears[g]
   
-  #TODO: fix this to incorporate skip/skipoff and multiple start markers
-  #get start and stop times for times when all are labeled - need to fix this a bit because sometimes there are multiiple start markers (e.g. VHMF010 on 20190712)
-  starts <- calls.date[which(calls.date$callType %in% c('start','START')),c('ind','t0')]
-  ends <- calls.date[which(calls.date$callType %in% c('stop','end','STOP','END')),c('ind','t0')]
+  #get dates associated with that groupyear
+  timeLine <- eval(as.name(paste(groupyears[g],'timeLine', sep = '_')))
+  indInfo <- eval(as.name(paste(groupyear,'indInfo', sep = '_')))
+  dates <- unique(date(timeLine))
+  dates_format <- gsub('-','',dates) #put in right format
   
-  #TODO: Fix this to better deal with missing start markers
-  #for now just take the minimum 'start' for each individual as its start marker and the max end marker as its end time
-  #if missing start markers, use the first and last calls of each ind as the start, but throw a warning
-  if(nrow(starts)==0){
-    starts <- aggregate(calls.date$t0, by = list(calls.date$ind),min)
-    warning(paste('missing start markers for date', date))
-  } else{
-    starts <- aggregate(starts$t0,by = list(starts$ind), min)
-  }
-  if(nrow(ends)==0){
-    ends <- aggregate(ends$t0, by = list(ends$ind), max)
-    warning(paste('missing stop markers for date', date))
-  } else{
-    ends <- aggregate(ends$t0,by = list(ends$ind), max)
-  }
+  #get all individuals in the group
+  inds <- indInfo$code
   
-  #find the latest start and earliest end times to be the group start and end time
-  start.all <- max(starts$x)
-  end.all <- min(ends$x)
+  for(d in 1:length(dates)){
   
-  #make a simple table that just contains the cc's from each individual at that date and their t0 and tf times (as numeric)
-  calls.use.date <- calls.date[which((calls.date$isCallerCallType | calls.date$isResponderCallType) & calls.date$pred_focalType == F),]
-  
-  #append to the larger table
-  if(nrow(calls.use.date)>0){
-    calls.use.date <- calls.use.date[,c('date','ind','callType','isCallerCallType','isResponderCallType','t0GPS_UTC','tendGPS_UTC','t0','tf')]
-    calls.use.date$t0 <- as.numeric(calls.use.date$t0)
-    calls.use.date$tf <- as.numeric(calls.use.date$tf)
-    calls.use.date$start <- as.numeric(start.all)
-    calls.use.date$end <- as.numeric(end.all)
+    date <- dates_format[d]
     
-    calls.use <- rbind(calls.use, calls.use.date)
+    calls.date <-  calls.all[which((calls.all$date == date) & (calls.all$ind %in% inds)),]
+    
+    #make a simple table that just contains the cc's from each individual at that date and their t0 and tf times (as numeric)
+    calls.use.date <- calls.date[which((calls.date$isCallerCallType | calls.date$isResponderCallType) & as.character(calls.date$pred_focalType) == 'F'),]
+
+    if(nrow(calls.use.date)>0){
+      #add columns for the t.idx (for linking with audioON table)
+      calls.use.date$t.sec <- substr(calls.use.date$t0GPS_UTC, 1, 19)
+      calls.use.date$t.idx <- match(calls.use.date$t.sec, timeLine)
+      calls.use.date$groupyear <- groupyear
+      
+      #append to the larger table
+      calls.use.date <- calls.use.date[,c('date','ind','callType','isCallerCallType','isResponderCallType','t0GPS_UTC','tendGPS_UTC','t0','tf','t.idx','groupyear')]
+      calls.use.date$t0 <- as.numeric(calls.use.date$t0)
+      calls.use.date$tf <- as.numeric(calls.use.date$tf)
+      calls.use <- rbind(calls.use, calls.use.date)
+    }
   }
 }
 
-colnames(calls.use) <- c('date','caller','callType','isCallerCallType','isResponderCallType','t0GPS','tfGPS','t0','tf','start','end')
-
-#create a list of which individuals were labeled on which date
-inds.present <- list()
-for(i in 1:length(dates)){
-  inds.present[[i]] <- unique(calls.all$ind[which(calls.all$date == dates[i])])
-}
+colnames(calls.use) <- c('date','caller','callType','isCallerCallType','isResponderCallType','t0GPS','tfGPS','t0','tf','t.idx','groupyear')
 
 #create an expanded data frame that contains rows for each other 'responder' individual (not the caller)
 timestamp()
 print('generating call-response table')
 callresp <- data.frame()
-for(i in 1:nrow(calls.use)){
+for(g in 1:length(groupyears)){
   
-  if(i %% 10000 == 0){
-    print(paste(i,'/',nrow(calls.use)))
+  groupyear <- groupyears[g]
+  audioOn <- eval(as.name(paste(groupyear,'audioOn', sep = '_')))
+  indInfo <- eval(as.name(paste(groupyear,'indInfo', sep = '_')))
+  rows <- which(calls.use$groupyear == groupyear)
+  
+  print('processing callresp for groupyear:')
+  print(groupyear)
+  
+  for(i in rows){
+    
+    row <- calls.use[i,]
+    t.idx <- row$t.idx
+    n.times <- ncol(audioOn)
+    
+    #if time window falls outside of overall bounds, skip
+    if(is.na(t.idx) || (t.idx - max.lag) < 1 || (t.idx + max.lag) > n.times){
+      next
+    }
+    
+    if(row$isCallerCallType == T){
+      
+      #find which individuals were possible responders (they were not missing audio data around that call)
+      missingAudio <- rowSums(!audioOn[,(t.idx - max.lag):(t.idx + max.lag)])
+      inds <- indInfo$code[which(missingAudio == 0)]
+      
+      new.rows <- row[rep(1,length(inds)),]
+      new.rows$responder <- inds
+      
+      callresp <- rbind(callresp, new.rows)
+    }
+    
   }
-  
-  row <- calls.use[i,]
-  
-  if(row$isCallerCallType == T){
-    
-    date.idx <- which(dates == calls.use$date[i])
-    inds <- inds.present[[date.idx]]
-    
-    new.rows <- row[rep(1,length(inds)),]
-    new.rows$responder <- inds
-    
-    callresp <- rbind(callresp, new.rows)
-  }
-  
-}
-
-#add a column with the correspoding groupyear to the callresp table
-groupyear.dates <- list()
-for(i in 1:length(groupyears)){
-  gy <- groupyears[i]
-  gy_tl <- eval(as.name(paste(gy,'timeLine', sep = '_')))
-  gy_dates <- unique(date(gy_tl))
-  gy_date_char <- gsub('-','', as.character(gy_dates))
-  groupyear.dates[[i]] <- gy_date_char
-}
-
-#add a column to the callresp table with the groupyear (to know which GPS data to use)
-callresp$groupyear <- NA
-for(i in 1:length(groupyears)){
-  idxs <- which(callresp$date %in% groupyear.dates[[i]])
-  callresp$groupyear[idxs] <- groupyears[i]
 }
 
 #get distance between caller and responder at time of the call (t0)
 #loop over group years
 timestamp()
 print('computing distances between individuals across all recording periods')
-#TODO: First get time indexes, only do once to speed up code
-callresp$distance <- NA
+
+callresp$distance <- callresp$caller.idx <- callresp$responder.idx <- NA
 for(g in 1:length(groupyears)){
-  
-  print(groupyears[g])
   
   #get indices associated with that group year, and associated timeline
   idxs <- which(callresp$groupyear == groupyears[g])
-  timeLine <- eval(as.name(paste(groupyears[g],'timeLine', sep = '_')))
-  timeline.numeric <- as.numeric(as.POSIXct(timeLine, tz = 'UTC'))
-  
+
   allX <- eval(as.name(paste(groupyears[g], 'allX', sep = '_')))
   allY <- eval(as.name(paste(groupyears[g], 'allY', sep = '_')))
   indInfo <- eval(as.name(paste(groupyears[g],'indInfo', sep = '_')))
+  gpsOn <- eval(as.name(paste(groupyears[g],'gpsOn', sep = '_')))
   
-  #loop over all indices associated with that group year and get response sequences
-  for(i in idxs){
-    caller <- callresp$caller[i]
-    responder <- callresp$responder[i]
-    
-    caller.idx <- match(caller,indInfo$code)
-    responder.idx <- match(responder,indInfo$code)
-    
-    t0 <- round(callresp$t0[i]) ##
-    t0.idx <- which(timeline.numeric==t0)
-    
-    if(length(t0.idx)!=0){
-      callresp$distance[i] <- sqrt((allX[caller.idx,t0.idx] - allX[responder.idx,t0.idx])^2 + (allY[caller.idx,t0.idx] - allY[responder.idx,t0.idx])^2)
-    }
-    
-  }
+  allX[!gpsOn] <- NA
+  allY[!gpsOn] <- NA
+  
+  #get indices of each individual
+  callresp$caller.idx[idxs] <- match(callresp$caller[idxs], indInfo$code)
+  callresp$responder.idx[idxs] <- match(callresp$responder[idxs], indInfo$code)
+  
+  #compute distance
+  xc <- allX[cbind(callresp$caller.idx[idxs], callresp$t.idx[idxs])]
+  yc <- allY[cbind(callresp$caller.idx[idxs], callresp$t.idx[idxs])]
+  xr <- allX[cbind(callresp$responder.idx[idxs], callresp$t.idx[idxs])]
+  yr <- allY[cbind(callresp$responder.idx[idxs], callresp$t.idx[idxs])]
+  dists <- sqrt((xc - xr)^2 + (yc - yr)^2)
+  
+  #store distances
+  callresp$distance[idxs] <- dists
   
 }
 
@@ -328,34 +313,28 @@ for(i in 1:nrow(callresp.seqs)){
   responder <- callresp$responder[i]
   caller <- callresp$caller[i]
   
-  #if too close to end, don't use
-  if(((zero.time - max.lag) > callresp$start[i]) & ((zero.time + max.lag) < callresp$end[i])){
-    
-    #get call times of the responder (only of the correct call type, and removing the current call)
-    current.call.idx <- which(calls.use$caller == caller & calls.use$t0 == callresp$t0[i] & calls.use$tf == callresp$tf[i])
-    if(length(current.call.idx)==0){
-      stop('could not find current call in the table')
-    } 
-    if(length(current.call.idx) > 1){
-      warning('found two calls with same label, start, and stop time')
-    }
-    calls.use.removeocurrent <- calls.use[-current.call.idx,]
-    call.times.foc <- calls.use.removeocurrent$t0[which(calls.use.removeocurrent$isResponderCallType & calls.use.removeocurrent$caller == responder)]
-    
-    dt.foc <- call.times.foc - zero.time
-    dt.foc <- dt.foc[which(abs(dt.foc) < max.lag)] #get rid of way early or way late calls to reduce compute time
-    call.seq <- rep(0, length(tseq))
-    
-    #add "spikes" for each responder call
-    if(length(dt.foc)>0){
-      for(j in 1:length(dt.foc)){
-        call.seq <- call.seq + dnorm(tseq, mean = dt.foc[j], sd = bw)
-      }
-    }
-    
-    callresp.seqs[i,] <- call.seq
-    
+  #get call times of the responder (only of the correct call type, and removing the current call)
+  current.call.idx <- which(calls.use$caller == caller & calls.use$t0 == callresp$t0[i] & calls.use$tf == callresp$tf[i])
+  if(length(current.call.idx)==0){
+    stop('could not find current call in the table')
+  } 
+  if(length(current.call.idx) > 1){
+    warning('found two calls with same label, start, and stop time')
   }
+  calls.use.removeocurrent <- calls.use[-current.call.idx,]
+  call.times.foc <- calls.use.removeocurrent$t0[which(calls.use.removeocurrent$isResponderCallType & calls.use.removeocurrent$caller == responder)]
+  
+  dt.foc <- call.times.foc - zero.time
+  dt.foc <- dt.foc[which(abs(dt.foc) < max.lag)] #get rid of way early or way late calls to reduce compute time
+  call.seq <- rep(0, length(tseq))
+  
+  #add "spikes" for each responder call
+  if(length(dt.foc)>0){
+    for(j in 1:length(dt.foc)){
+      call.seq <- call.seq + dnorm(tseq, mean = dt.foc[j], sd = bw)
+    }
+  }
+  callresp.seqs[i,] <- call.seq
 }
 
 timestamp()
