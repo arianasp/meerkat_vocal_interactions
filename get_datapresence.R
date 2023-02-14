@@ -23,7 +23,7 @@
 gps.datadir <- '/Volumes/EAS_shared/meerkat/working/processed/movement/'
 
 #use latest audio label table
-label.file <- '/Volumes/EAS_shared/meerkat/working/processed/acoustic/resolve_conflicts/foc_calls_resolved.csv'
+label.file <- '/Volumes/EAS_shared/meerkat/working/processed/acoustic/resolve_conflicts/all_calls_sync_resolved_with_oor_2022-12-04.csv'
 
 #groupyears
 groupyears <- c('HM2017','HM2019','L2019')

@@ -85,7 +85,7 @@ groupyears <- c('HM2017', 'HM2019', 'L2019')
 #audio.file <- 'full_labelfile_conflicts_resolved.csv'
 gps.files <- paste(groupyears, 'COORDINATES_all_sessions.RData', sep = '_')
 
-audio.file <- '/Volumes/EAS_shared/meerkat/working/processed/acoustic/resolve_conflicts/foc_calls_resolved.csv'
+audio.file <- '/Volumes/EAS_shared/meerkat/working/processed/acoustic/resolve_conflicts/all_calls_sync_resolved_with_oor_2022-12-04.csv'
 
 #store parameters in a named list
 params <- list()

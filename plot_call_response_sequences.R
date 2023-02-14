@@ -1,16 +1,18 @@
 #-------------------FILENAME--------------------
-filename <- '~/Dropbox/meerkats/meerkats_shared/ari/vocal_interactions/data/call_response/callresp_sn_sn_bw0.05.RData'
+filename <- '~/Dropbox/meerkats/results/call_interactions/callresp_sn_sn_bw0.05.RData'
 
 #data directory where ind info is stored
 ind_info_dir <- '/Volumes/EAS_shared/meerkat/working/METADATA/'
 
 #------------------PARAMETERS------------------
 dist.bins <- c(0,2,5,10,50)
+#dist.bins <- c(0,.1,.5,1,2,3,5,10,50)
 
 #plots to do
 plot.spiking.neurons <- F
 plot.call.resp.all <- T
-plot.self.resp.all <- T
+plot.self.resp.all <- F
+plot.by.caller <- F
 
 #caller age classes
 adult_classes <- c('DominantF','DominantM','Yearling','Sub-Adult','Adult')
@@ -61,13 +63,15 @@ if(plot.call.resp.all){
   #---PLOT 2: Call response dynamics on average, between two adult individuals
   #At different spatial scales
   #collect the data
+  gy <- 'HM2017'
   mean.call.rates <- matrix(NA,nrow=length(dist.bins)-1, ncol = length(tseq))
   for(i in 2:length(dist.bins)){
     idxs <- which((callresp$distance >= dist.bins[i-1]) &
                     (callresp$distance < dist.bins[i]) & 
                     (callresp$caller != callresp$responder) & 
                     (callresp$age_caller %in% adult_classes) & 
-                    (callresp$age_responder %in% adult_classes))
+                    (callresp$age_responder %in% adult_classes)&
+                    callresp$groupyear == gy)
     mean.call.rates[i-1,] <- colMeans(callresp.seqs[idxs,],na.rm=T)
   }
   
@@ -157,6 +161,39 @@ if(plot.self.resp.all){
   abline(v=0, lty = 2)
   lines(tseq, self.reply.rates.juv, lwd = 3)
   
+  
+}
+
+#------SUBSET BY CALLER-----
+if(plot.by.caller){
+  
+  #max distance to use
+  max.dist <- 5
+  
+  #get data frame of all callers and their age / dominance classes
+  callresp$caller_id_age <- paste(callresp$caller, callresp$age_caller, sep = '_')
+  ages <- aggregate(callresp$age_caller, by = list(callresp$caller_id_age), FUN = unique)
+  ids <- aggregate(callresp$caller, by = list(callresp$caller_id_age), FUN = unique)
+  callers <- data.frame(id_age = ages$Group.1, id = ids$x, age = ages$x)
+  
+  #get responder call rate as a function of time since caller call
+  mean.call.rates <- matrix(NA, nrow = nrow(callers), ncol = length(tseq))
+  n.samps <- rep(NA, nrow(callers))
+  for(i in 1:nrow(callers)){
+    idxs <- which(callresp$caller_id_age==callers$id_age[i] & callresp$distance <= max.dist & callresp$caller != callresp$responder)
+    n.samps[i] <- length(idxs)
+    mean.call.rates[i,] <- colMeans(callresp.seqs[idxs,])
+  }
+  
+  #make a plot
+  quartz(height = 8, width = 12)
+  par(mfrow=c(5, 5),mar=c(1,1,1,1))
+  for(i in 1:nrow(callers)){
+    if(n.samps[i] >= 500){
+      plot(tseq, mean.call.rates[i,], type = 'l', lwd = 2, xlim = c(-2,2), xlab = 'Time (sec)', ylab = 'Mean call rate', main = callers$id_age[i])
+      abline(v=0)
+    }
+  }
   
 }
 
