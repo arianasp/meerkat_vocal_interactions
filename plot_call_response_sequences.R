@@ -1,12 +1,18 @@
+library(viridis)
+library(scales)
+
 #-------------------FILENAME--------------------
-filename <- '~/Dropbox/meerkats/results/call_interactions/callresp_sn_sn_bw0.05.RData'
+filename <- '~/Dropbox/meerkats/results/call_interactions/callresp_cc_cc_bw0.05.RData'
 
 #data directory where ind info is stored
-ind_info_dir <- '/Volumes/EAS_shared/meerkat/working/METADATA/'
+#ind_info_dir <- '/Volumes/EAS_shared/meerkat/working/METADATA/'
+ind_info_dir <- '~/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/METADATA/'
 
 #------------------PARAMETERS------------------
 dist.bins <- c(0,2,5,10,50)
 #dist.bins <- c(0,.1,.5,1,2,3,5,10,50)
+n.boots <- 100 #number of bootstraps to do for error bars
+gy <- 'L2019' #which group year to use
 
 #plots to do
 plot.spiking.neurons <- F
@@ -17,6 +23,21 @@ plot.by.caller <- F
 #caller age classes
 adult_classes <- c('DominantF','DominantM','Yearling','Sub-Adult','Adult')
 juv_classes <- c('Juvenile')
+
+#--------------------HELPER FUNCS---------------
+get_mean_call_rates <- function(callresp, callresp.seqs, gy, dist.bins, tseq, adult_classes){
+  mean.call.rates <- matrix(NA,nrow=length(dist.bins)-1, ncol = length(tseq))
+  for(i in 2:length(dist.bins)){
+    idxs <- which((callresp$distance >= dist.bins[i-1]) &
+                    (callresp$distance < dist.bins[i]) & 
+                    (callresp$caller != callresp$responder) & 
+                    (callresp$age_caller %in% adult_classes) & 
+                    (callresp$age_responder %in% adult_classes)&
+                    callresp$groupyear == gy)
+    mean.call.rates[i-1,] <- colMeans(callresp.seqs[idxs,],na.rm=T)
+  }
+  return(mean.call.rates)
+}
 
 #--------------------LOAD DATA------------------
 load(filename)
@@ -60,20 +81,33 @@ if(plot.spiking.neurons){
 
 #CALL RESPONSE PLOTS
 if(plot.call.resp.all){
+  
   #---PLOT 2: Call response dynamics on average, between two adult individuals
   #At different spatial scales
   #collect the data
-  gy <- 'HM2017'
-  mean.call.rates <- matrix(NA,nrow=length(dist.bins)-1, ncol = length(tseq))
-  for(i in 2:length(dist.bins)){
-    idxs <- which((callresp$distance >= dist.bins[i-1]) &
-                    (callresp$distance < dist.bins[i]) & 
-                    (callresp$caller != callresp$responder) & 
-                    (callresp$age_caller %in% adult_classes) & 
-                    (callresp$age_responder %in% adult_classes)&
-                    callresp$groupyear == gy)
-    mean.call.rates[i-1,] <- colMeans(callresp.seqs[idxs,],na.rm=T)
+
+  #get mean call rates for each distance bin and time bin
+  mean.call.rates <- get_mean_call_rates(callresp, callresp.seqs, gy, dist.bins, tseq, adult_classes)
+  
+  #get mean call rates in bootstrapped data
+  #matrix to hold output
+  mean.call.rates.boot <- array(NA,dim = c(length(dist.bins)-1,length(tseq), n.boots))
+  
+  #unique identifier for selecting relevant calls
+  callresp$calluniqueid <- paste0(callresp$groupyear,'_',callresp$caller,'_',callresp$t0GPS)
+  calluniqueids <- unique(callresp$calluniqueid)
+  
+  #bootstrap by selecting same number of unique calls from the set with replacement
+  for(b in 1:n.boots){
+    print(paste0(b,'/',n.boots))
+    timestamp()
+    calluniqueids.boot <- sample(calluniqueids, replace=T)
+    calluniqueids.boot.idxs <- which(callresp$calluniqueid %in% calluniqueids.boot)
+    mean.call.rates.boot[,,b] <- get_mean_call_rates(callresp[calluniqueids.boot.idxs,], callresp.seqs[calluniqueids.boot.idxs,], gy, dist.bins, tseq, adult_classes)
   }
+  
+  uppers.boot <- apply(mean.call.rates.boot, c(1,2), FUN = function(x){return(quantile(x,0.975,na.rm=T))})
+  lowers.boot <- apply(mean.call.rates.boot, c(1,2), FUN = function(x){return(quantile(x,0.025,na.rm=T))})
   
   #make the plot
   quartz(height = 8, width = 12)
@@ -85,6 +119,7 @@ if(plot.call.resp.all){
     plot(NULL, xlim=c(-2,2),ylim=c(0,ymax),xlab='Time lag (sec)', ylab = 'Call rate', cex.axis=1.5,cex.lab=1.5, main = paste(dist.bins[i],'-', dist.bins[i+1],'m',sep=' '))
     abline(v = seq(-3,3,.1), col = 'gray', lwd = 0.5)
     abline(v=0, lty=1, col = 'black')
+    polygon(c(tseq,rev(tseq)),c(uppers.boot[i,],rev(lowers.boot[i,])),col=alpha(cols[i],.3),border=NA)
     lines(tseq, mean.call.rates[i,], col = cols[i], lwd = 2, type = 'l', )
   }
 
