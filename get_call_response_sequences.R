@@ -46,10 +46,12 @@
 save.output <- T
 
 #directory where gps data is stored for the project
-gps.datadir <- '/Volumes/EAS_shared/meerkat/working/processed/movement/'
+#gps.datadir <- '/Volumes/EAS_shared/meerkat/working/processed/movement/' #SERVER
+gps.datadir <- '~/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/' #LOCAL
 
 #direcotry where audio labeling data is stored for the project
-audio.datadir <- '/Volumes/EAS_shared/meerkat/working/processed/acoustic'
+#audio.datadir <- '/Volumes/EAS_shared/meerkat/working/processed/acoustic' #SERVER
+audio.datadir <- '~/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/' #LOCAL
 
 #directory where code is stored for this project
 codedir <- '~/Dropbox/code_ari/meerkat_vocal_interactions'
@@ -61,10 +63,10 @@ savedir <- '~/Dropbox/meerkats/results/call_interactions/'
 general.funcs.filename <- 'meerkat_functions.R'
 
 #bandwidth of smoothing kernel (default 0.1)
-bw <- .05
+bw <- .1
 
 #maximum time lag to consider (time since another individual called)
-max.lag <- 30 
+max.lag <- 3
 
 #time step to use for the sequence of times
 step <- .02
@@ -85,7 +87,8 @@ groupyears <- c('HM2017', 'HM2019', 'L2019')
 #audio.file <- 'full_labelfile_conflicts_resolved.csv'
 gps.files <- paste(groupyears, 'COORDINATES_all_sessions.RData', sep = '_')
 
-audio.file <- '/Volumes/EAS_shared/meerkat/working/processed/acoustic/resolve_conflicts/all_calls_sync_resolved_with_oor_2022-12-04.csv'
+#audio.file <- '/Volumes/EAS_shared/meerkat/working/processed/acoustic/resolve_conflicts/all_calls_sync_resolved_with_oor_2022-12-04.csv' #SERVER
+audio.file <- '~/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/all_calls_sync_resolved_with_oor_2022-12-04.csv' #LOCAL
 
 #store parameters in a named list
 params <- list()

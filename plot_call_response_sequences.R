@@ -2,7 +2,7 @@ library(viridis)
 library(scales)
 
 #-------------------FILENAME--------------------
-filename <- '~/Dropbox/meerkats/results/call_interactions/callresp_cc_cc_bw0.05.RData'
+filename <- '~/Dropbox/meerkats/results/call_interactions/callresp_cc_cc_bw0.1.RData'
 
 #data directory where ind info is stored
 #ind_info_dir <- '/Volumes/EAS_shared/meerkat/working/METADATA/'
@@ -12,7 +12,7 @@ ind_info_dir <- '~/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/MET
 dist.bins <- c(0,2,5,10,50)
 #dist.bins <- c(0,.1,.5,1,2,3,5,10,50)
 n.boots <- 100 #number of bootstraps to do for error bars
-gy <- 'L2019' #which group year to use
+gy <- NULL #which group year to use (if NULL, use all groups together)
 
 #plots to do
 plot.spiking.neurons <- F
@@ -25,17 +25,35 @@ adult_classes <- c('DominantF','DominantM','Yearling','Sub-Adult','Adult')
 juv_classes <- c('Juvenile')
 
 #--------------------HELPER FUNCS---------------
-get_mean_call_rates <- function(callresp, callresp.seqs, gy, dist.bins, tseq, adult_classes){
+#Calculate mean call rates from data frame of call response data and time sequences
+#INPUTS:
+# callresp: data frame containing info on call responses (from get_call_response_sequences script)
+# callresp.seqs: matrix containing the actual time series data (from get_call_response_sequences script)
+# gy: groupyear, currently 'HM2017','HM2019', and 'L2019' are supported. If NULL, use all groups together
+# tseq: vector sequence of times (from get_call_response_sequences script)
+# dist.bins: vector of distance bins (default to 0,2,5,10,50)
+# adult_classes: age classes to use (default to c('DominantF','DominantM','Yearling','Sub-Adult','Adult'))
+get_mean_call_rates <- function(callresp, callresp.seqs, gy, tseq, 
+                                dist.bins = c(0,2,5,10,50), 
+                                adult_classes = c('DominantF','DominantM','Yearling','Sub-Adult','Adult')){
   mean.call.rates <- matrix(NA,nrow=length(dist.bins)-1, ncol = length(tseq))
   for(i in 2:length(dist.bins)){
-    idxs <- which((callresp$distance >= dist.bins[i-1]) &
+    if(!is.null(gy)){
+      idxs <- which((callresp$distance >= dist.bins[i-1]) &
                     (callresp$distance < dist.bins[i]) & 
                     (callresp$caller != callresp$responder) & 
                     (callresp$age_caller %in% adult_classes) & 
                     (callresp$age_responder %in% adult_classes)&
                     callresp$groupyear == gy)
+    } else{
+      idxs <- which((callresp$distance >= dist.bins[i-1]) &
+                      (callresp$distance < dist.bins[i]) & 
+                      (callresp$caller != callresp$responder) & 
+                      (callresp$age_caller %in% adult_classes) & 
+                      (callresp$age_responder %in% adult_classes))
+      }
     mean.call.rates[i-1,] <- colMeans(callresp.seqs[idxs,],na.rm=T)
-  }
+    }
   return(mean.call.rates)
 }
 
@@ -87,42 +105,77 @@ if(plot.call.resp.all){
   #collect the data
 
   #get mean call rates for each distance bin and time bin
-  mean.call.rates <- get_mean_call_rates(callresp, callresp.seqs, gy, dist.bins, tseq, adult_classes)
+  mean.call.rates <- get_mean_call_rates(callresp, callresp.seqs, gy, tseq, dist.bins, adult_classes)
   
   #get mean call rates in bootstrapped data
   #matrix to hold output
   mean.call.rates.boot <- array(NA,dim = c(length(dist.bins)-1,length(tseq), n.boots))
   
-  #unique identifier for selecting relevant calls
-  callresp$calluniqueid <- paste0(callresp$groupyear,'_',callresp$caller,'_',callresp$t0GPS)
-  calluniqueids <- unique(callresp$calluniqueid)
+  #unique identifier for selecting relevant sequences in bootstrapping
+  callresp$groupyeardate <- paste0(callresp$groupyear,'_',callresp$date)
+  groupyeardates <- unique(callresp$groupyeardate)
   
-  #bootstrap by selecting same number of unique calls from the set with replacement
+  #bootstrap by selecting same number of days as we have in real dataset with replacement
   for(b in 1:n.boots){
     print(paste0(b,'/',n.boots))
     timestamp()
-    calluniqueids.boot <- sample(calluniqueids, replace=T)
-    calluniqueids.boot.idxs <- which(callresp$calluniqueid %in% calluniqueids.boot)
-    mean.call.rates.boot[,,b] <- get_mean_call_rates(callresp[calluniqueids.boot.idxs,], callresp.seqs[calluniqueids.boot.idxs,], gy, dist.bins, tseq, adult_classes)
+    
+    #bootstrap for error bars - either by call or by day/group
+    groupyeardates.boot <- sample(groupyeardates, replace=T)
+    groupyeardates.boot.idxs <- c()
+    for(bb in 1:length(groupyeardates.boot)){
+      groupyeardates.boot.idxs <- c(groupyeardates.boot.idxs, which(callresp$groupyeardate == groupyeardates.boot[bb]))
+    }
+    callresptmp <- callresp[groupyeardates.boot.idxs,]
+    callrespseqstmp <- callresp.seqs[groupyeardates.boot.idxs,]
+    mean.call.rates.boot[,,b] <- get_mean_call_rates(callresptmp, callrespseqstmp, gy, tseq, dist.bins, adult_classes)
   }
   
+  #get upper and lowers (95% interval)
   uppers.boot <- apply(mean.call.rates.boot, c(1,2), FUN = function(x){return(quantile(x,0.975,na.rm=T))})
   lowers.boot <- apply(mean.call.rates.boot, c(1,2), FUN = function(x){return(quantile(x,0.025,na.rm=T))})
   
   #make the plot
-  quartz(height = 8, width = 12)
+  quartz(height = 6, width = 12)
   par(mfrow=c(1,length(dist.bins)-1))
-  par(mar=c(8,6,3,1))
-  ymax <- max(mean.call.rates)*1.1
+  par(mar=c(6,6,3,1))
+  ymax <- max(mean.call.rates)*1.3
   cols <- viridis(nrow(mean.call.rates))
   for(i in 1:nrow(mean.call.rates)){
     plot(NULL, xlim=c(-2,2),ylim=c(0,ymax),xlab='Time lag (sec)', ylab = 'Call rate', cex.axis=1.5,cex.lab=1.5, main = paste(dist.bins[i],'-', dist.bins[i+1],'m',sep=' '))
     abline(v = seq(-3,3,.1), col = 'gray', lwd = 0.5)
     abline(v=0, lty=1, col = 'black')
-    polygon(c(tseq,rev(tseq)),c(uppers.boot[i,],rev(lowers.boot[i,])),col=alpha(cols[i],.3),border=NA)
-    lines(tseq, mean.call.rates[i,], col = cols[i], lwd = 2, type = 'l', )
+    polygon(c(tseq,rev(tseq)),c(uppers.boot[i,],rev(lowers.boot[i,])),col=alpha(cols[i],.2),border=NA)
+    for(j in 1:dim(mean.call.rates.boot)[3]){
+      lines(tseq, mean.call.rates.boot[i,,j], col = cols[i], lwd = .2)
+    }
+    lines(tseq, mean.call.rates[i,], col = cols[i], lwd = 5, type = 'l', )
   }
-
+  
+  #Normalized version (to test for peaks and ignore overall up/down shifts across days)
+  mean.call.rates.norm <- t(apply(mean.call.rates, 1, function(x){return(x / max(x))}))
+  mean.call.rates.boot.norm <- aperm(apply(mean.call.rates.boot, c(1,3), function(x){return(x / max(x))}), c(2,1,3))
+  uppers.boot.norm <- apply(mean.call.rates.boot.norm, c(1,2), FUN = function(x){return(quantile(x,0.975,na.rm=T))})
+  lowers.boot.norm <- apply(mean.call.rates.boot.norm, c(1,2), FUN = function(x){return(quantile(x,0.025,na.rm=T))})
+  
+  
+  #make the plot
+  quartz(height = 6, width = 12)
+  par(mfrow=c(1,length(dist.bins)-1))
+  par(mar=c(6,6,3,1))
+  ymax <- max(mean.call.rates.boot.norm)*1.01
+  cols <- viridis(nrow(mean.call.rates.norm))
+  for(i in 1:nrow(mean.call.rates.norm)){
+    plot(NULL, xlim=c(-2,2),ylim=c(.5,ymax),xlab='Time lag (sec)', ylab = 'Call rate / Max call rate', cex.axis=1.5,cex.lab=1.5, main = paste(dist.bins[i],'-', dist.bins[i+1],'m',sep=' '))
+    abline(v = seq(-3,3,.1), col = 'gray', lwd = 0.5)
+    abline(v=0, lty=1, col = 'black')
+    polygon(c(tseq,rev(tseq)),c(uppers.boot.norm[i,],rev(lowers.boot.norm[i,])),col=alpha(cols[i],.2),border=NA)
+    for(j in 1:dim(mean.call.rates.boot.norm)[3]){
+      lines(tseq, mean.call.rates.boot.norm[i,,j], col = cols[i], lwd = .2)
+    }
+    lines(tseq, mean.call.rates.norm[i,], col = cols[i], lwd = 5, type = 'l', )
+  }
+  
   #---PLOT 3: Call response dynamics across all distances 
   #By age class 
   
