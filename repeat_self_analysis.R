@@ -1,83 +1,149 @@
-#This code does not currently work!
-#It was taken from the original vocal_interactions_across_space_and_time script and needs to be integrated into a subsequent script to work (after computing call response sequences)
 
 #------PARAMETERS------
 repeat.dist.thresh <- 5
+n.boots <- 100
 
 #-----FILENAME------
-filename <- '~/Dropbox/meerkats/meerkats_shared/ari/vocal_interactions/data/call_response/callresp_cc_cc_bw0.05.RData'
+filename <- '~/Dropbox/meerkats/results/call_interactions/callresp_cc_cc_bw0.05_30sec.RData'
 
 #-----LOAD------
 load(filename)
 
 #----SETUP---
-#first the time of the previous call (by anyone within repeat.dist.thresh of the caller), the caller id, and the call type
-callresp$prevcall.t0 <- NA
-callresp$prevcall.caller <- NA
-callresp$prevcall.type <- NA
-callresp$n.inds.in.range <- NA
 
-#time of the next call (by anyone within repeat.dist.thresh of the caller), the caller id, and the call type
-callresp$nextcall.t0 <- NA
-callresp$nextcall.caller <- NA
-callresp$nextcall.type <- NA
+#remove callresp.seqs first half (the sequence from before a given call) 
+#also reduce the temporal resolution to save compute time
+nT <- length(tseq)
+res_idxs <- seq(from=((nT-1)/2+1),to=nT, by = 5)
+callresp.seqs <- callresp.seqs[,res_idxs]
+tseq <- tseq[res_idxs]
 
-for(i in 1:nrow(callresp)){
+#break into self-responses and other responses
+self_idxs <- which(callresp$caller==callresp$responder)
+other_idxs <- which(callresp$caller!=callresp$responder)
+callresp_self <- callresp[self_idxs,]
+callresp_other <- callresp[other_idxs,]
+callresp.seqs_self <- callresp.seqs[self_idxs,]
+callresp.seqs_other <- callresp.seqs[other_idxs,]
+rm(list=c('callresp','callresp.seqs'))
+
+#retain only individuals within 5 m
+callresp_other_close <- callresp_other[which(callresp_other$distance <= repeat.dist.thresh),]
+
+#find how many individuals were within the distance threshold
+#also find the time of the first response by an individual within the distance threshold (if any)
+callresp_self$t_first_response <- NA
+callresp_self$inds_in_range <- NA
+rows <- seq(1, nrow(callresp_self))
+
+timestamp()
+for(i in rows){
   
-  #get time of the focal call
-  t0 <- callresp$t0[i] 
-  
-  #time index in timeLine
-  t0.round <- round(t0)
-  t.idx <- which(timeline.numeric == t0.round)
-  
-  #get individual index
-  ind.idx <- which(indInfo$code == callresp$caller[i])
-  
-  #distances to all other individuals present
-  dists <- sqrt((allX[,t.idx] - allX[ind.idx,t.idx])^2 + (allY[,t.idx] - allY[ind.idx,t.idx])^2)
-  
-  #distance to self is NA
-  dists[ind.idx] <- NA
-  
-  #get the individuals that are in range (wihtin repeat.dist.thresh)
-  inds.in.range.idxs <- which(dists < repeat.dist.thresh)
-  
-  #store number of individuals in range
-  callresp$n.inds.in.range[i] <- length(inds.in.range.idxs)
-  
-  #if there are some indivudals in range, find the most recent call from any of them of any type, and next call of a type in responder.calltypes  
-  if(length(inds.in.range.idxs)>0){
-    
-    #get individuals in range at the time of the focal call
-    inds.in.range <- indInfo$code[inds.in.range.idxs]
-    
-    #get all calls from the individuals in range
-    calls.inds.in.range <- calls.all[which(calls.all$ind %in% inds.in.range & calls.all$isCall==1 & calls.all$pred_focalType=='F'),]
-    
-    #get most recent previous call from the individuals in range (of any type)
-    calls.before <- calls.inds.in.range$t0[which(calls.inds.in.range$t0 < t0)]
-    if(length(calls.before) > 0){
-      prev.call.time.inds.in.range <- max(calls.before)
-      callresp$prevcall.t0[i] <- as.numeric(prev.call.time.inds.in.range, tz = 'UTC')
-      prev.call.inds.in.range.idx <- which(calls.inds.in.range$t0 == prev.call.time.inds.in.range)[1]
-      callresp$prevcall.caller[i] <- calls.inds.in.range$ind[prev.call.inds.in.range.idx]
-      callresp$prevcall.type[i] <- calls.inds.in.range$callSimple[prev.call.inds.in.range.idx]
-    }
-    
-    #get next call from individuals in range (of types in responder.calltypes)
-    correct.calls.after <- calls.inds.in.range$t0[which(calls.inds.in.range$t0 > t0 & calls.inds.in.range$callType %in% responder.calltypes)]
-    if(length(correct.calls.after)>0){
-      correct.calls.after.numeric <- as.numeric(correct.calls.after, tz = 'UTC')
-      next.call.time.inds.in.range <- min(correct.calls.after.numeric)
-      callresp$nextcall.t0[i] <- as.numeric(next.call.time.inds.in.range)
-      next.call.inds.in.range.idx <- which(calls.inds.in.range$t0 == next.call.time.inds.in.range)[1]
-      callresp$nextcall.caller[i] <- calls.inds.in.range$ind[next.call.inds.in.range.idx]
-      callresp$nextcall.type[i] <- calls.inds.in.range$callSimple[next.call.inds.in.range.idx]
-    }
+  if(i %% 1000 == 1){
+    print(paste0(i,'/',length(rows)))
   }
+  
+  #time of the initial call
+  t0 <- callresp_self$t0[i]
+  
+  #caller of the initial call
+  caller <- callresp_self$caller[i]
+  
+  #how many individuals were located within 5 m of the caller at the time of the original call?
+  responder_idxs <- which(callresp_other_close$caller == caller & callresp_other_close$t0 == t0)
+  n_in_range <- length(responder_idxs)
+  callresp_self$inds_in_range[i] <- n_in_range
+  
+  #get all calls associated with other callers which are after t0 and within 5 m of the original caller
+  later_call_idxs <- which(callresp_other_close$t0 >= t0 & callresp_other_close$caller != caller)
+  
+  #find the first call from amongst those within 5 m of the original caller (if no calls, return NA)
+  if(length(later_call_idxs)==0){
+    next
+  }
+  first_call_time <- min(callresp_other_close$t0[later_call_idxs])
+  dt <- first_call_time-t0
+  callresp_self$t_first_response[i] <- dt
+  
+}
+timestamp()
+
+#get index (in tseq vector) after which the individual has been responded to
+#this gives warnings - it's OK
+callresp_self$tidx_first_response <- sapply(callresp_self$t_first_response, FUN = function(x){return(min(which(tseq>=x)))})
+callresp_self$tidx_first_response[which(is.infinite(callresp_self$tidx_first_response))] <- NA
+
+#create callresp.seqs_self for when an individual does and does not hear a response within 5 m
+#first just copy over the callresp.seqs_self matrix to both matrices
+callseq_beforeresp <- callseq_afterresp <- callresp.seqs_self
+
+#then fill with NAs AFTER the first response for callseq_beforeresp and BEFORE the first response for callseq_afterresp
+maxT <- max(tseq)
+max_tidx <- length(tseq)
+for(i in rows){
+  
+  #if there was never a response, replace all values in that row for both matrices with NAs
+  if(is.na(callresp_self$t_first_response[i])){
+    callseq_afterresp[i,] <- NA
+    callseq_beforeresp[i,] <- NA
+    next
+  }
+  
+  #if the first response came after maxT, consider everything to be pre-response
+  if(callresp_self$t_first_response[i] >= maxT){
+    callseq_afterresp[i,] <- NA
+    next
+  }
+  
+  #get the index of the tiem of first response
+  tidx <- callresp_self$tidx_first_response[i]
+  
+  #otherwise, fill in all values before tidx with NAs for callseq_afterresp
+  #and fill in all values after tidx with NAs for callseq_beforeresp
+  callseq_beforeresp[i,tidx:max_tidx] <- NA
+  callseq_afterresp[i,1:(tidx-1)] <- NA
+  
 }
 
-callresp$dt.prev <- callresp$t0 - callresp$prevcall.t0
-callresp$dt.next <- callresp$nextcall.t0 - callresp$t0
+#get means
+means_before <- colMeans(callseq_beforeresp,na.rm=T)
+means_after <- colMeans(callseq_afterresp,na.rm=T)
+
+#bootstrap by groupyear and date
+callresp_self$groupyeardate <- paste0(callresp_self$groupyear,'_',callresp_self$date)
+groupyeardates <- unique(callresp_self$groupyeardate)
+means_before_boot <- means_after_boot <- matrix(nrow=length(means_before),ncol=n.boots)
+for(i in 1:n.boots){
+  print(i)
+  groupyeardates_boot <- sample(groupyeardates,replace=T)
+  idxs <- c()
+  for(j in 1:length(groupyeardates_boot)){
+    idxs <- c(idxs, which(callresp_self$groupyeardate == groupyeardates_boot[j]))
+  }
+  means_before_boot[,i] <- colMeans(callseq_beforeresp[idxs,],na.rm=T)
+  means_after_boot[,i] <- colMeans(callseq_afterresp[idxs,],na.rm=T)
+  
+}
+
+#plot
+maxy <- max(max(means_before_boot,na.rm=T),max(means_after_boot,na.rm=T))
+quartz()
+plot(NULL, xlim=c(0,20),ylim=c(0,maxy),xlab = 'Time after initial call (sec)',ylab = 'Self-reply rate')
+
+#for(i in 1:n.boots){
+#  lines(tseq,means_before_boot[,i],col='red',lwd=.2)
+#  lines(tseq,means_after_boot[,i],col='blue',lwd=.2)
+#}
+
+uppers_before <- apply(means_before_boot, 1, function(x){return(quantile(x,0.975,na.rm=T))})
+uppers_after <- apply(means_after_boot, 1, function(x){return(quantile(x,0.975,na.rm=T))})
+lowers_before <- apply(means_before_boot, 1, function(x){return(quantile(x,0.025,na.rm=T))})
+lowers_after <- apply(means_after_boot, 1, function(x){return(quantile(x,0.025,na.rm=T))})
+
+polygon(c(tseq,rev(tseq)), c(uppers_before, rev(lowers_before)), border=NA, col = alpha('red',0.2))
+polygon(c(tseq,rev(tseq)), c(uppers_after, rev(lowers_after)), border=NA, col = alpha('blue',0.2))
+
+lines(tseq,means_before,col='red',lwd=3)
+lines(tseq,means_after,col='blue',lwd=3)
+legend('bottomright', legend = c('Response within 5 m', 'No response within 5 m'), col = c('blue','red'),lwd=c(3,3))
 
