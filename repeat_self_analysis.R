@@ -105,7 +105,18 @@ for(i in rows){
   
 }
 
+#either use all data or make some subset
+idxs_to_remove <- which(callresp_self$inds_in_range==0) #only when others are around
+idxs_to_remove <- NULL #don't remove anything
+
+#put NAs in the idxs we decided to remove
+if(length(idxs_to_remove)>0){
+  callseq_beforeresp[idxs_to_remove,] <- NA
+  callseq_afterresp[idxs_to_remove,] <- NA
+}
+
 #get means
+
 means_before <- colMeans(callseq_beforeresp,na.rm=T)
 means_after <- colMeans(callseq_afterresp,na.rm=T)
 
