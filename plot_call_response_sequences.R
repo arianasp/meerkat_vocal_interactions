@@ -31,6 +31,16 @@ juv_classes <- c('Juvenile')
 #------------LIBRARIES-------------
 library(viridis)
 
+#-----------GRAPHICS--------
+#make compatible with windows OS
+if(.Platform$OS.type=="windows") {
+  quartz<-function() windows()
+}
+#make compatible with Linux (untested)
+if(.Platform$OS.type == 'unix') {
+  quartz<-function() x11()
+}
+
 #--------------------HELPER FUNCS---------------
 #Calculate mean call rates from data frame of call response data and time sequences
 #INPUTS:
