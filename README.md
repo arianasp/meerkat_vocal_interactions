@@ -1,8 +1,3 @@
----
-output:
-  html_document: default
-  pdf_document: default
----
 # Meerkat vocal interactions code
 
 This repository contains the code to carry out analyses of meerkat vocal interactions,
