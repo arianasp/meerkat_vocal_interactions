@@ -4,23 +4,27 @@
 
 #It works as follows:
 #Make a table of all calls within a given call category (set of calls), identify the one who gave the call as the 'caller'
-#For each call, identify all other individuals ('responders') who were present (calls labeled) on that day, note their distance from the caller
+#For each call, identify all other individuals ('responders') who were present (calls labeled) on that day
 #Also identify the distance between the caller and responder at the time when the call was given by the caller
 #Save this table as callresp
 #Note: This table DOES include self-responses (which can be useful for looking at self-response patterns, or can be filtered out later)
 
 #Then for each of row in this table, look at the call sequence of the 'responder' over time, lined up so that t = 0 = time of the 'caller' call
-#Run a kernel over this time series to smooth it with a bandwidth bw = .05 sec (or as specified by parameters bw)
+#Run a kernel over this time series to smooth it with a bandwidth bw = .1 sec (or as specified by parameters bw)
 #Save the output to a matrix as callresp.seqs, such that the indices in the table match the indices in the matrix
 
-#In a subsequent script (plot_call_response_sequences), these sequences are further explored and plotted.
+#In a subsequent script (plot_call_response_sequences.R), these sequences are further explored and plotted.
 #For instance, we can get the mean across all (or a subset) of rows of the matrix for different conditions:
 # Different distance bins (aggregate only data from caller-responder pairs within a range of distances from one another)
-# Different individuals + distance bins (aggregate only data from caller-responder pairs where the caller was a certain individual, and distance < 3 m since this was discovered to be the relevant range from the distance analysis)
+# Different age/sex/dominance classes (aggregate only data from caller-responder pairs where the caller was a certain status, and the responder was a certain status)
 # Investigate self-interactions
 # Etc.
 
-#This script requires filling in the parameters specified under PARAMETERS
+#This script requires filling in the parameters specified under PARAMETERS 
+#Generally, you will only need to modify the parameters specifying the paths to your input and output files, 
+#and the caller.calltype and responder.calltype (should be either 'cc' for close calls or 'sn' for short notes, for both variables)
+#This is specified in the section below titled YOU WILL NEED TO MODIFY THESE PARAMETERS TO RUN ON YOUR MACHINE
+
 #If save.output == T, this script saves a file containing:
 # callresp: [data frame] of call-response pairs w/ relevant columns
 #  date: [str] the date in format yyyymmdd
@@ -42,25 +46,35 @@
 
 #----------------PARAMETERS--------------------
 
-#whether to save output
-save.output <- T
+#-------YOU WILL NEED TO MODIFY THESE PARAMETERS TO RUN ON YOUR MACHINE-----------
+#flag that allows you to test the code on a smaller subset of dates (to save time)
+#set to T for testing mode, set to F to run code on all data (takes several hours)
+#Note that if you run this code in test mode, the output will be very noisy because only a few calls are used, therefore the results are NOT expected to match those in the paper
+testflag <- F
 
 #directory where gps data is stored for the project
-#gps.datadir <- '/Volumes/EAS_shared/meerkat/working/processed/movement/' #SERVER
-gps.datadir <- '~/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/' #LOCAL
+gps.datadir <- '~/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/paper_data_to_submit/' 
 
 #direcotry where audio labeling data is stored for the project
-#audio.datadir <- '/Volumes/EAS_shared/meerkat/working/processed/acoustic' #SERVER
-audio.datadir <- '~/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/' #LOCAL
+audio.datadir <- '~/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/paper_data_to_submit/' 
 
 #directory where code is stored for this project
 codedir <- '~/Dropbox/code_ari/meerkat_vocal_interactions'
 
-#directory of where to save results
+#directory of where to save results (for later plotting)
 savedir <- '~/Dropbox/meerkats/results/call_interactions/'
 
-#filename of general meerkat functions
-general.funcs.filename <- 'meerkat_functions.R'
+#list of call types to include in the set of calls by the initial caller (which determines the 0 point of the correlogram)
+#Options are either 'cc' (for close calls) or 'sn' (for short note calls)
+caller.calltype <- 'cc' 
+
+#list of call types of include in the set of calls by the responder (determines the curve in the correlogram)
+#Options are either 'cc' (for close calls) or 'sn' (for short note calls)
+responder.calltype <- 'cc'
+
+#----------YOU SHOULD GENERALLY NOT NEED TO MODIFY THESE PARAMETERS--------------
+#whether to save output
+save.output <- T
 
 #bandwidth of smoothing kernel (default 0.1)
 bw <- .1
@@ -71,12 +85,6 @@ max.lag <- 3
 #time step to use for the sequence of times
 step <- .02
 
-#list of call types to include in the set of calls by the initial caller (which determines the 0 point of the correlogram)
-caller.calltype <- 'sn' 
-
-#list of call types of include in the set of calls by the responder (determines the curve in the correlogram)
-responder.calltype <- 'sn'
-
 #what to trigger on (call begin or call end)
 trigger.on <- 'begin'
 
@@ -84,12 +92,10 @@ trigger.on <- 'begin'
 groupyears <- c('HM2017', 'HM2019', 'L2019')
 
 #file names
-#audio.file <- 'full_labelfile_conflicts_resolved.csv'
 gps.files <- paste(groupyears, 'COORDINATES_all_sessions.RData', sep = '_')
+audio.file <- 'all_calls_sync_resolved_with_oor_2022-12-04.csv' 
 
-#audio.file <- '/Volumes/EAS_shared/meerkat/working/processed/acoustic/resolve_conflicts/all_calls_sync_resolved_with_oor_2022-12-04.csv' #SERVER
-audio.file <- '~/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/all_calls_sync_resolved_with_oor_2022-12-04.csv' #LOCAL
-
+# ----- SETUP -------
 #store parameters in a named list
 params <- list()
 params$gps.datadir <- gps.datadir
@@ -103,6 +109,7 @@ params$trigger.on <- trigger.on
 params$groupyears <- groupyears
 params$audio.file <- audio.file
 params$gps.files <- gps.files
+params$testflag <- testflag
 
 #---------------------SETUP-----------------------
 
@@ -110,16 +117,12 @@ params$gps.files <- gps.files
 Sys.setenv(TZ='UTC')
 
 if(save.output){
-  savename <- paste0('callresp_', caller.calltype, '_', responder.calltype, '_bw', bw, '.RData')
+  if(testflag){
+    savename <- paste0('callresp_', caller.calltype, '_', responder.calltype, '_bw', bw, '_test.RData')
+  } else{
+    savename <- paste0('callresp_', caller.calltype, '_', responder.calltype, '_bw', bw, '.RData')
+  }
 }
-
-#------------------LIBRARIES----------------------
-
-#libraries
-library(jcolors)
-library(fitdistrplus)
-library(viridis)
-library(fields)
 
 #------------------LOAD DATA-----------------------
 
@@ -138,12 +141,6 @@ setwd(gps.datadir)
 for(i in 1:length(gps.files)){
   load(gps.files[i])
 }
-
-#------------------FUNCTIONS------------------------
-#source functions
-setwd(codedir)
-
-source(general.funcs.filename)
 
 #--------------------PREPROCESS-------------------------------
 
@@ -194,6 +191,7 @@ for(g in 1:length(groupyears)){
   timeLine <- eval(as.name(paste(groupyears[g],'timeLine', sep = '_')))
   indInfo <- eval(as.name(paste(groupyear,'indInfo', sep = '_')))
   dates <- unique(date(timeLine))
+  
   dates_format <- gsub('-','',dates) #put in right format
   
   #get all individuals in the group
@@ -224,6 +222,11 @@ for(g in 1:length(groupyears)){
 }
 
 colnames(calls.use) <- c('date','caller','callType','isCallerCallType','isResponderCallType','t0GPS','tfGPS','t0','tf','t.idx','groupyear')
+
+#if using in test mode, subsample calls randomly to select 1000 calls
+if(testflag){
+  calls.use <- calls.use[sample(1:nrow(calls.use), 1000),]
+}
 
 #create an expanded data frame that contains rows for each other 'responder' individual (not the caller)
 timestamp()
