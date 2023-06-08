@@ -19,7 +19,17 @@ The code was developed and tested in R version 4.1.2 on Mac OS 13.2.1, Platform 
 Other versions of R and operating systems are likely to work as well.
 The code requires the following R packages to be installed via `install.packages('packageName')` prior to use:
 
-* `viridis`
+* `viridis`: used for plotting
+
+* `lubridate`: used for datetime handling
+
+* `stringr`: used for string handling
+
+* `gplots`: used for plotting
+
+* `fields`: used for plotting
+
+
 
 ## Requirements - data
 
@@ -60,7 +70,9 @@ The repository contains the following scripts:
 
 * `plot_call_response_sequences.R`: uses the saved call-response sequences to produce the plots
 
-* `spatiotemporal_call_clustering.R`: characterize spatiotemporal clustering of calls of different types, make plots
+* `get_spatiotemporal_call_clustering.R`: code for generating spatiotemporal clustering metric later used in plots
+
+* `plot_spatiotemporal_call_clustering.R`: code for plotting spatiotemporal clustering metric results
 
 ## How to run
 
@@ -77,9 +89,9 @@ There are two analyses: an analysis of call and response patterns (as a function
 
 * The places where you need to modify are clearly marked at the top of the script with the comment `#YOU WILL NEED TO MODIFY THESE PARAMETERS TO RUN ON YOUR MACHINE`. 
 
-* After this script finishes running, it will save an output fill called `callresp_cc_cc_bw0.1.RData` or `callresp_sn_sn_bw0.1.RData` depending on whether you selected close calls (cc) or short notes (sn). This file will be saved in the directory that you specify at the top of the script (`savedir`).
+* After this script finishes running, it will save an output file called `callresp_cc_cc_bw0.1.RData` or `callresp_sn_sn_bw0.1.RData` depending on whether you selected close calls (cc) or short notes (sn). This file will be saved in the directory that you specify at the top of the script (`savedir`).
 
-* **NOTE:** This script will take many hours to run on a typical laptop. It is suggested to run it overnight or on a machine you don't mind leaving for awhile! Alternatively, you can use the pre-generated results files provided with the manuscript. We also provide functionality for testing the code by setting the flag `testflag <- T`. This will only generate call-response sequences for a very small subset of the data. It can be used to test the code, however please note that the results will be nonsense!
+* **NOTE:** This script will take many hours to run on a typical laptop. It is suggested to run it overnight or on a machine you don't mind leaving for awhile! Alternatively, you can use the pre-generated results files provided with the manuscript. We also provide functionality for testing the code by setting the flag `testflag <- T`. This will only generate call-response sequences for a very small subset of the data. It can be used to test the code, however please note that the results will be nonsense! These files will be saved with a `_test` flag at the end of the filename.
 
 **Step 2: Plot call-response curves.** Once you have generated the required output file, you are ready to run the second script: `plot_call_response_sequences.R`. This script will generate the plots from the manuscript. 
 
@@ -89,9 +101,21 @@ There are two analyses: an analysis of call and response patterns (as a function
 
 ### For the spatiotemporal call clustering analysis:
 
+**Step 1: Generate the spatiotemporal call clustering data that will be used in the plots and save.** This can be generated via the script `get_spatiotemporal_call_clustering.R`. 
 
+* You will need to modify the paths to the data files and directory where you want to save the output on your machine. 
 
+* You may also need to modify the parameter `callType` at the top of the script to specify what type of call your are performing the analysis on (by default, the script will run the analysis for close calls). The options are close calls ('cc') or short notes ('sn'). 
 
+* The places where you need to modify are clearly marked at the top of the script with the comment `#YOU WILL NEED TO MODIFY THESE PARAMETERS TO RUN ON YOUR MACHINE`.
 
+* After this script finishes running, it will save output files called `{calltype}_clustering_{groupyear}.RData` for each group-year (HM2017, HM2019, L2019). This file will be saved in the directory that you specify at the top of the script (`savedir`).
 
+* **NOTE:** This script will take many hours to run on a typical laptop. It is suggested to run it overnight or on a machine you don't mind leaving for awhile! Alternatively, you can use the pre-generated results files provided with the manuscript. We also provide functionality for testing the code by setting the flag `testflag <- T`. This will only generate clustering metrics for a very small subset of the data. It can be used to test the code, however please note that the results will be nonsense! These files will be saved with a `_test` flag at the end of the filename.
+
+**Step 2: Plot the results**. This can be done using the script `plot_spatiotemporal_call_clustering.R`. 
+
+* To run this script, you will need to specify the path to your output file (from Part 1) as well as the directory where you have stored the raw data. 
+
+* The places where you need to modify are clearly marked at the top of the script with the comment `#YOU WILL NEED TO MODIFY THESE PARAMETERS TO RUN ON YOUR MACHINE`. 
 
