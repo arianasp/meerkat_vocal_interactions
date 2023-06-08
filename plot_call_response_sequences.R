@@ -2,7 +2,7 @@ library(viridis)
 library(scales)
 
 #-------------------FILENAME--------------------
-filename <- '~/Dropbox/meerkats/results/call_interactions/callresp_cc_cc_bw0.1.RData'
+filename <- '~/Dropbox/meerkats/results/call_interactions/callresp_sn_sn_bw0.1.RData'
 
 #data directory where ind info is stored
 #ind_info_dir <- '/Volumes/EAS_shared/meerkat/working/METADATA/'
