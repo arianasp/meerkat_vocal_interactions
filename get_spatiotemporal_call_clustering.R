@@ -53,16 +53,16 @@ testflag <- F
 #----------YOU SHOULD GENERALLY NOT NEED TO MODIFY THESE PARAMETERS--------------
 
 #time windows (sec)
-time.windows <- c(1,5,10,30,60,120,300,600,1200,1800,3600)
+time.windows <- c(1,3,10,30,90,180,600,1800,5400)
 
 #distance windows (m)
-dist.windows <- c(2,4,6,8,10,15,20,25,30,40,60,80,100)
+dist.windows <- c(1,2,5,10,15,20,30,50,100)
 
 #number of randomizations
 n.rands <- 100
 
 #list of sessions to use
-sessions <- c('HM2017', 'HM2019', 'L2019')
+sessions <- c('HM2019','HM2017', 'L2019')
 
 #minimum number of individual present to include in dataset
 min.inds.present <- 5
@@ -91,43 +91,61 @@ if(testflag){
 #   out$K: the modified Knox K metric (num / denom)
 #NOTE: In the calculations below, we actually don't use the raw K metric but rather take partial (numerical) derivatives using
 #the num and denom outputs
-compute_Knox_index <- function(calls.include, allX, allY, dist.window, time.window){
+compute_Knox_indexes <- function(calls.include, allX, allY, dist.windows, time.windows){
   
   #get x and y positions at the times of calls
   x_call <- allX[cbind(calls.include$ind.idx, calls.include$time.idx)]
   y_call <- allY[cbind(calls.include$ind.idx, calls.include$time.idx)]
+  t_call <- as.numeric(as.POSIXlt(calls.include$t0GPS_UTC))
+  
+  #remove NAs
+  non.na.idxs <- which(!is.na(x_call) & !is.na(y_call) & !is.na(t_call))
+  if(length(non.na.idxs)==0){
+    stop('All values are NAs')
+  }
+  x_call <- x_call[non.na.idxs]
+  y_call <- y_call[non.na.idxs]
+  t_call <- t_call[non.na.idxs]
   
   #construct a spatial distance matrix (actually formatted as a vector) for the dist between every pair of calls
   spatial.dist <- dist(cbind(x_call, y_call))
   
   #construct a temporal distance matrix for the temporal distance between every pair of calls
-  temporal.dist <- dist(as.numeric(as.POSIXlt(calls.include$t0GPS_UTC)))
+  temporal.dist <- dist(t_call)
   
   #construct matrix to determine if the caller was the same caller (1) or a different (0)
-  same.ind <- dist(calls.include$ind.idx) == 0
+  diff.inds <- dist(calls.include$ind.idx) != 0
   
-  #replace all instances of the same caller with NA
-  spatial.dist[same.ind] <- NA
-  temporal.dist[same.ind] <- NA
+  #remove same caller data
+  spatial.dist <- spatial.dist[diff.inds]
+  temporal.dist <- temporal.dist[diff.inds]
   
-  #get the numerator of K,
-  #this is the total number of calls within a distance window dist.window and a time window time.window
-  num <- sum(spatial.dist <= dist.window & temporal.dist <= time.window, na.rm=T)
-  
-  #get the denominator (normalization factor) of K
-  #this is the total number of calls within a time window time.window
-  denom <- sum(temporal.dist <= time.window, na.rm=T)
-  
-  #compute K
-  K <- num / denom
+  #matrices to store output
+  Ks <- nums <- denoms <- matrix(NA, nrow = length(dist.windows), ncol = length(time.windows))
+  for(r in 1:length(dist.windows)){
+    for(t in 1:length(time.windows)){
+
+      #get the numerator of K,
+      #this is the total number of calls within a distance window dist.window and a time window time.window
+      nums[r,t] <- sum(spatial.dist <= dist.windows[r] & temporal.dist <= time.windows[t], na.rm=T)
+      
+      #get the denominator (normalization factor) of K
+      #this is the total number of calls within a time window time.window
+      denoms[r,t] <- sum(temporal.dist <= time.windows[t], na.rm=T)
+      
+      #compute K
+      Ks[r,t] <- nums[r,t] / denoms[r,t]
+      
+    }
+  }
   
   #list for output
   out <- list()
-  out$dist.window <- dist.window
-  out$time.window <- time.window
-  out$num <- num
-  out$denom <- denom
-  out$K <- K
+  out$dist.windows <- dist.windows
+  out$time.windows <- time.windows
+  out$nums <- nums
+  out$denoms <- denoms
+  out$Ks <- Ks
   
   return(out)
 }
@@ -288,17 +306,10 @@ for(sess.idx in 1:length(sessions)){
   K.data <- num.data <- denom.data <- matrix(NA, nrow = length(dist.windows), ncol = length(time.windows))
   print('computing K for real data')
   timestamp()
-  for(r in 1:length(dist.windows)){
-    for(t in 1:length(time.windows)){
-      
-      #compute K for the real data
-      out <- compute_Knox_index(calls.include, allX, allY, dist.windows[r], time.windows[t])
-      K.data[r,t] <- out$K
-      num.data[r,t] <- out$num
-      denom.data[r,t] <- out$denom
-      
-    }
-  }
+  out <- compute_Knox_indexes(calls.include, allX, allY, dist.windows, time.windows)
+  K.data <- out$K
+  num.data <- out$num
+  denom.data <- out$denom
   
   #Randomizations - randomizing individuals on each day, only within individuals present on that day
   print('computing K for randomizations')
@@ -325,22 +336,12 @@ for(sess.idx in 1:length(sessions)){
       }
     }
     
-    #TODO: maybe need to divide by the number of timesteps where both individuals tracked?
-    
-    #compute k index for each permutation
-    for(r in 1:length(dist.windows)){
-      for(t in 1:length(time.windows)){
-        out <- compute_Knox_index(calls.include, allX_rand, allY_rand, dist.windows[r], time.windows[t])
-        K.rand[r,t,n] <- out$K
-        num.rand[r,t,n] <- out$num
-        denom.rand[r,t,n] <- out$denom
-      }
-    }  
-    
-    
+    out <- compute_Knox_indexes(calls.include, allX_rand, allY_rand, dist.windows, time.windows)
+    K.rand[,,n] <- out$K
+    num.rand[,,n] <- out$num
+    denom.rand[,,n] <- out$denom
+    timestamp()
   }
-  
-  timestamp()
   
   #calculate circle areas and convert to a matrix (for data) and array (for randomizations)
   circle.areas <- pi*dist.windows^2
