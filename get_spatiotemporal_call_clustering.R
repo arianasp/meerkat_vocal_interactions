@@ -48,7 +48,7 @@ savedir <- '~/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/'
 callType <- 'cc'
 
 #test on a smaller number of bins and with only one null model?
-testflag <- T
+testflag <- F
 
 #----------YOU SHOULD GENERALLY NOT NEED TO MODIFY THESE PARAMETERS--------------
 
