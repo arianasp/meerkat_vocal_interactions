@@ -80,15 +80,15 @@ if(testflag){
 #INPUTS:
 # calls.include: call data frame
 # allX, allY: matrices [n.inds x n.times] of x and y positions respectively
-# dist.window: distance window used by the metric (m)
-# time.window: time window used by the metric (sec)
+# dist.windows: distance windows used by the metric (m)
+# time.windows: time windows used by the metric (sec)
 #OUTPUTS:
 # out: a list containing
 #   out$dist.window: distance window (same as input)
 #   out$time.window: time window (same as input)
-#   out$num: the numerator of K, i.e. the total number of calls within a distance window dist.window and a time window time.window
-#   out$denom: the denominator of K, i.e. the total number of calls within a time window time.window
-#   out$K: the modified Knox K metric (num / denom)
+#   out$num: matrix of the numerators of K for each distance (row) / time window (column), i.e. the total number of calls within a distance window dist.window and a time window time.window
+#   out$denom: matrix of the denominators of K, i.e. the total number of calls within a time window time.window
+#   out$K: matrix of the modified Knox K metric (num / denom)
 #NOTE: In the calculations below, we actually don't use the raw K metric but rather take partial (numerical) derivatives using
 #the num and denom outputs
 compute_Knox_indexes <- function(calls.include, allX, allY, dist.windows, time.windows){
