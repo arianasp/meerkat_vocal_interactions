@@ -1,4 +1,4 @@
-#Spatiotemporal call clustering - do calls cluster together in space?
+#Spatiotemporal call clustering - do calls cluster together in space and time?
 
 #This code runs the call spatiotemporal clustering analysis described in the paper 
 #"Mapping vocal interactions in space and time differentiates call-and-response vs. broadcast signalling in meerkat groups"
@@ -59,10 +59,10 @@ time.windows <- c(1,3,10,30,90,180,600,1800,5400)
 dist.windows <- c(1,2,5,10,15,20,30,50,100)
 
 #number of randomizations
-n.rands <- 100
+n.rands <- 1
 
 #list of sessions to use
-sessions <- c('HM2019','HM2017', 'L2019')
+sessions <- c('L2019')
 
 #minimum number of individual present to include in dataset
 min.inds.present <- 5
@@ -219,7 +219,11 @@ for(sess.idx in 1:length(sessions)){
                                audio.end = rep(NA, length(dates)))
   inds.present <- matrix(FALSE, nrow = nrow(labeled.intervals), ncol = n.inds)
   for(date.idx in 1:length(dates)){
+    
+    #get all calls on that date
     calls.date <- calls.all[which(calls.all$date == dates[date.idx]),]
+    
+    #get the individuals that have labeled audio on that date
     inds.date <- unique(calls.date$ind.idx)
     inds.present[date.idx, inds.date] <- TRUE
     start.times <- end.times <- rep(NA, length(inds.date))
@@ -276,6 +280,15 @@ for(sess.idx in 1:length(sessions)){
     labeled.intervals <- labeled.intervals[-empty.intervals,]
     inds.present <- inds.present[-empty.intervals,]
     dates <- dates[-empty.intervals]
+  }
+  
+  #now also remove the individuals that don't have complete gps data (missing less than a minute) during the relevant time interval
+  for(d in 1:nrow(labeled.intervals)){
+    for(i in 1:n.inds){
+      if(sum(is.na(allX[i,labeled.intervals$audio.start[d]:labeled.intervals$audio.end[d]])) > 60){
+        inds.present[d,i] <- F
+      }
+    }
   }
   
   #if there are any dates where fewer than min.inds.present (default = 5) individuals were present, don't include them
