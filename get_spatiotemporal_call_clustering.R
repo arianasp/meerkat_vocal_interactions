@@ -59,10 +59,10 @@ time.windows <- c(1,3,10,30,90,180,600,1800,5400)
 dist.windows <- c(1,2,5,10,15,20,30,50,100)
 
 #number of randomizations
-n.rands <- 1
+n.rands <- 100
 
 #list of sessions to use
-sessions <- c('L2019')
+sessions <- c('HM2017','HM2019','L2019')
 
 #minimum number of individual present to include in dataset
 min.inds.present <- 5
@@ -388,14 +388,20 @@ for(sess.idx in 1:length(sessions)){
   rowdiffs.rand[2:nrow(num.data),,] <- (num.rand[2:nrow(num.data),,] - num.rand[1:(nrow(num.data)-1),,])
   
   #then take the column (time) differences in number of call pairs
-  coldiffs.data <- (cbind(rowdiffs.data[,1],rowdiffs.data[,2:ncol(rowdiffs.data)] - rowdiffs.data[,1:(ncol(rowdiffs.data)-1)]))
-  coldiffs.rand <- array(NA, dim = dim(rowdiffs.rand))
-  coldiffs.rand[,1,] <- rowdiffs.rand[,1,]
-  coldiffs.rand[,2:ncol(rowdiffs.rand),] <- (rowdiffs.rand[,2:ncol(rowdiffs.rand),] - rowdiffs.rand[,1:(ncol(rowdiffs.rand)-1),])
+  callpairs.data <- (cbind(rowdiffs.data[,1],rowdiffs.data[,2:ncol(rowdiffs.data)] - rowdiffs.data[,1:(ncol(rowdiffs.data)-1)]))
+  callpairs.rand <- array(NA, dim = dim(rowdiffs.rand))
+  callpairs.rand[,1,] <- rowdiffs.rand[,1,]
+  callpairs.rand[,2:ncol(rowdiffs.rand),] <- (rowdiffs.rand[,2:ncol(rowdiffs.rand),] - rowdiffs.rand[,1:(ncol(rowdiffs.rand)-1),])
   
-  #then normalize by area and time window
-  dKdAdt.data <- coldiffs.data / (dA.mat * dt.mat)
-  dKdAdt.rand <- coldiffs.rand / (dA.array * dt.array)
+  #callpairs matrixes / arrays now contain the number of pairs of calls given within distance r to r+dr and time window t to t + dt
+  
+  #now normalize by the total amount of calls in all time windows (denoms)
+  callpairs.norm.data <- callpairs.data / denom.data
+  callpairs.norm.rand <- callpairs.rand / denom.rand
+  
+  #then normalize by area and time window size to be able to compare across different spatial and temporal scales
+  dKdAdt.data <- callpairs.norm.data / (dA.mat * dt.mat)
+  dKdAdt.rand <- callpairs.norm.rand / (dA.array * dt.array)
   
   #output file name
   outfile.name <- paste0(savedir,callType,'_clustering_',session,'.RData')
