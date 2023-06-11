@@ -6,7 +6,7 @@
 
 savedir <- '~/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/paper_data_to_submit/precomputed/'
 testflag <- F
-callType <- 'sn'
+callType <- 'cc'
 
 #----------YOU SHOULD GENERALLY NOT NEED TO MODIFY THESE PARAMETERS--------------
 sessions <- c('HM2017','HM2019','L2019')
