@@ -62,7 +62,7 @@ audio.datadir <- '~/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/pa
 codedir <- '~/Dropbox/code_ari/meerkat_vocal_interactions'
 
 #directory of where to save results (for later plotting)
-savedir <- '~/Dropbox/meerkats/results/call_interactions/'
+savedir <- '~/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/'
 
 #list of call types to include in the set of calls by the initial caller (which determines the 0 point of the correlogram)
 #Options are either 'cc' (for close calls) or 'sn' (for short note calls)
@@ -123,6 +123,9 @@ if(save.output){
     savename <- paste0('callresp_', caller.calltype, '_', responder.calltype, '_bw', bw, '.RData')
   }
 }
+
+#-------LIBRARY-------
+library(lubridate)
 
 #------------------LOAD DATA-----------------------
 

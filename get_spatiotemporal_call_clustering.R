@@ -8,16 +8,9 @@
 #How does it work?
 #First, we define a clustering metric.
 #Here we use modification of the "Knox statistic" (actually kind of numerical derivative of the Knox statistic, described below)
-#Basically, as a metric of clustering, we compute the number of pairs of calls that 
-#fall within a distance range r to r + dr and a temporal range t to t + dt. We then noramlize this value by the
-#spatial and temporal bin size to get a kind of "density" estimate. We divide by dt, and also by the area of the
-#"ring" between the circle with radius r and the circle with radius r + dr. So for the spatial part, we divide
-#by the value pi * ((r+dr)^2 - (r)^2). Why a ring rather than just dividing by dr? Because there are more ways
-#for pairs of points to be larger distances apart, so this needs to be normalized by an area instead of by a distance.
-#In this case the relevant area is the ring described above. 
-#So, overall, the metric is defined as
-# K(r,t) = number of pairs of calls / [pi * ((r+dr)^2 - (r)^2)] / [dt]
-#Its units are pairs of calls per m^2 per second
+#As a metric of clustering, we compute the number of pairs of calls that 
+#fall within a distance range r to r + dr and a temporal range t to t + dt. We then noramlize this value by the total
+#number of pairs of calls within all distance and time ranges
 
 #Next, we create a null model
 #Because meerkats move in cohesive groups, there will trivially be some spatial and temporal clustering of calls.
@@ -53,10 +46,10 @@ testflag <- F
 #----------YOU SHOULD GENERALLY NOT NEED TO MODIFY THESE PARAMETERS--------------
 
 #time windows (sec)
-time.windows <- c(1,3,10,30,90,180,600,1800,5400)
+time.windows <- c(0,1,2,5,10,20,30,60,120,300,600,1800,3600)
 
 #distance windows (m)
-dist.windows <- c(1,2,5,10,15,20,30,50,100)
+dist.windows <- c(0,1,2,5,10,20,30,50,100,200)
 
 #number of randomizations
 n.rands <- 100
@@ -82,6 +75,7 @@ if(testflag){
 # allX, allY: matrices [n.inds x n.times] of x and y positions respectively
 # dist.windows: distance windows used by the metric (m)
 # time.windows: time windows used by the metric (sec)
+# diff.inds.only: boolean variable determining whether we should remove same-individual pairs of calls (T) or not (F)
 #OUTPUTS:
 # out: a list containing
 #   out$dist.window: distance window (same as input)
@@ -91,7 +85,7 @@ if(testflag){
 #   out$K: matrix of the modified Knox K metric (num / denom)
 #NOTE: In the calculations below, we actually don't use the raw K metric but rather take partial (numerical) derivatives using
 #the num and denom outputs
-compute_Knox_indexes <- function(calls.include, allX, allY, dist.windows, time.windows){
+compute_Knox_indexes <- function(calls.include, allX, allY, dist.windows, time.windows, diff.inds.only = F){
   
   #get x and y positions at the times of calls
   x_call <- allX[cbind(calls.include$ind.idx, calls.include$time.idx)]
@@ -113,39 +107,41 @@ compute_Knox_indexes <- function(calls.include, allX, allY, dist.windows, time.w
   #construct a temporal distance matrix for the temporal distance between every pair of calls
   temporal.dist <- dist(t_call)
   
-  #construct matrix to determine if the caller was the same caller (1) or a different (0)
-  diff.inds <- dist(calls.include$ind.idx) != 0
-  
-  #remove same caller data
-  spatial.dist <- spatial.dist[diff.inds]
-  temporal.dist <- temporal.dist[diff.inds]
+  #remove pairs of calls given by the same individual if specified
+  if(diff.inds.only){
+    #construct matrix to determine if the caller was the same caller (1) or a different (0)
+    diff.inds <- dist(calls.include$ind.idx) != 0
+    
+    #remove same caller data
+    spatial.dist <- spatial.dist[diff.inds]
+    temporal.dist <- temporal.dist[diff.inds]
+  }
   
   #matrices to store output
-  Ks <- nums <- denoms <- matrix(NA, nrow = length(dist.windows), ncol = length(time.windows))
-  for(r in 1:length(dist.windows)){
-    for(t in 1:length(time.windows)){
-
-      #get the numerator of K,
-      #this is the total number of calls within a distance window dist.window and a time window time.window
-      nums[r,t] <- sum(spatial.dist <= dist.windows[r] & temporal.dist <= time.windows[t], na.rm=T)
+  npairs.dist.time <- matrix(NA, nrow = length(dist.windows)-1, ncol = length(time.windows)-1)
+  for(r in 2:length(dist.windows)){
+    for(t in 2:length(time.windows)){
       
-      #get the denominator (normalization factor) of K
-      #this is the total number of calls within a time window time.window
-      denoms[r,t] <- sum(temporal.dist <= time.windows[t], na.rm=T)
+      #get booleans indicating whether a given call pair falls within a given distance bin and time bin
+      in.dist.bin <- (spatial.dist >= dist.windows[r-1]) & (spatial.dist < dist.windows[r])
+      in.time.bin <- (temporal.dist >= time.windows[t-1]) & (temporal.dist < time.windows[t])
       
-      #compute K
-      Ks[r,t] <- nums[r,t] / denoms[r,t]
-      
+      #get the total number of calls within a distance window and a time window
+      npairs.dist.time[r-1,t-1] <- sum(in.dist.bin & in.time.bin, na.rm=T)
     }
   }
+  
+  #normalize by total number of pairs of calls within all time and distance bins
+  tot.pairs <- sum(npairs.dist.time, na.rm=T)
+  K <- npairs.dist.time / tot.pairs
   
   #list for output
   out <- list()
   out$dist.windows <- dist.windows
   out$time.windows <- time.windows
-  out$nums <- nums
-  out$denoms <- denoms
-  out$Ks <- Ks
+  out$K <- npairs.dist.time / tot.pairs
+  out$npairs.dist.time <- npairs.dist.time
+  out$tot.pairs <- tot.pairs
   
   return(out)
 }
@@ -316,18 +312,18 @@ for(sess.idx in 1:length(sessions)){
   
   #-----------COMPUTE K STAT IN REAL VS RANDOMIZED DATA -----
   
-  K.data <- num.data <- denom.data <- matrix(NA, nrow = length(dist.windows), ncol = length(time.windows))
+  K.data <- matrix(NA, nrow = length(dist.windows), ncol = length(time.windows))
   print('computing K for real data')
   timestamp()
   out <- compute_Knox_indexes(calls.include, allX, allY, dist.windows, time.windows)
   K.data <- out$K
-  num.data <- out$num
-  denom.data <- out$denom
+  tot.pairs.data <- out$tot.pairs
   
   #Randomizations - randomizing individuals on each day, only within individuals present on that day
   print('computing K for randomizations')
   timestamp()
-  K.rand <- num.rand <- denom.rand <- array(NA, dim = c(length(dist.windows), length(time.windows), n.rands))
+  K.rand <- array(NA, dim = c(length(dist.windows)-1, length(time.windows)-1, n.rands))
+  tot.pairs.rand <- rep(NA, n.rands)
   for(n in 1:n.rands){
     print(paste0('randomization ', n, '/', n.rands))
     allX_rand <- allX
@@ -351,57 +347,9 @@ for(sess.idx in 1:length(sessions)){
     
     out <- compute_Knox_indexes(calls.include, allX_rand, allY_rand, dist.windows, time.windows)
     K.rand[,,n] <- out$K
-    num.rand[,,n] <- out$num
-    denom.rand[,,n] <- out$denom
+    tot.pairs.rand[n] <- out$tot.pairs
     timestamp()
   }
-  
-  #calculate circle areas and convert to a matrix (for data) and array (for randomizations)
-  circle.areas <- pi*dist.windows^2
-  circle.areas.mat <- matrix(rep(circle.areas, length(time.windows)), nrow = length(dist.windows), ncol = length(time.windows))
-  circle.areas.array <- array(rep(circle.areas.mat, n.rands), dim = c(length(dist.windows), length(time.windows), n.rands))
-  
-  #construct a time matrix
-  time.windows.mat <- matrix(rep(time.windows, each = length(dist.windows)), nrow = length(dist.windows), ncol = length(time.windows))
-  time.windows.array <- array(rep(time.windows.mat, n.rands), dim = c(length(dist.windows), length(time.windows), n.rands))
-  
-  #calculate differences between circle areas and store in a matrix / array
-  dA.mat <- rbind(circle.areas.mat[1,], (circle.areas.mat[2:nrow(circle.areas.mat),] - circle.areas.mat[1:(nrow(circle.areas.mat)-1)]))
-  dA.array <- array(rep(dA.mat, n.rands), dim = c(length(dist.windows), length(time.windows), n.rands))
-  
-  #calculate dt and store in a matrix / array
-  dt.mat <- cbind(time.windows.mat[,1], time.windows.mat[,2:ncol(time.windows.mat)] - time.windows.mat[,1:(ncol(time.windows.mat)-1)])
-  dt.array <- array(rep(dt.mat, n.rands), dim = c(length(dist.windows), length(time.windows), n.rands))
-  
-  #get new matrix / array, dKdAdt.data and dKdAdt.rand
-  #this is the spatial and temporal derivative, in other words, 
-  #each cell represents the density of pairs of calls (per area and per second)
-  #that were given within a ring at R to R + dr and within the time window t to t + dt
-  #rows = distances
-  #cols = times
-  #third dim = permutation number
-  
-  #take the row (distance) differences in number of call pairs
-  rowdiffs.data <- (rbind(num.data[1,],num.data[2:nrow(num.data),] - num.data[1:(nrow(num.data)-1),]))
-  rowdiffs.rand <- array(NA, dim = dim(num.rand))
-  rowdiffs.rand[1,,] <- num.rand[1,,]
-  rowdiffs.rand[2:nrow(num.data),,] <- (num.rand[2:nrow(num.data),,] - num.rand[1:(nrow(num.data)-1),,])
-  
-  #then take the column (time) differences in number of call pairs
-  callpairs.data <- (cbind(rowdiffs.data[,1],rowdiffs.data[,2:ncol(rowdiffs.data)] - rowdiffs.data[,1:(ncol(rowdiffs.data)-1)]))
-  callpairs.rand <- array(NA, dim = dim(rowdiffs.rand))
-  callpairs.rand[,1,] <- rowdiffs.rand[,1,]
-  callpairs.rand[,2:ncol(rowdiffs.rand),] <- (rowdiffs.rand[,2:ncol(rowdiffs.rand),] - rowdiffs.rand[,1:(ncol(rowdiffs.rand)-1),])
-  
-  #callpairs matrixes / arrays now contain the number of pairs of calls given within distance r to r+dr and time window t to t + dt
-  
-  #now normalize by the total amount of calls in all time windows (denoms)
-  callpairs.norm.data <- callpairs.data / denom.data
-  callpairs.norm.rand <- callpairs.rand / denom.rand
-  
-  #then normalize by area and time window size to be able to compare across different spatial and temporal scales
-  dKdAdt.data <- callpairs.norm.data / (dA.mat * dt.mat)
-  dKdAdt.rand <- callpairs.norm.rand / (dA.array * dt.array)
   
   #output file name
   outfile.name <- paste0(savedir,callType,'_clustering_',session,'.RData')
@@ -410,7 +358,7 @@ for(sess.idx in 1:length(sessions)){
   }
   
   #save
-  save(list=c('session','dist.windows','time.windows','num.data','num.rand','denom.data','denom.rand','n.rands','dKdAdt.data','dKdAdt.rand'), file = outfile.name)
+  save(list=c('session','dist.windows','time.windows','K.data','K.rand','tot.pairs.data','tot.pairs.rand','n.rands'), file = outfile.name)
 
 }
     
