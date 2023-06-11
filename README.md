@@ -30,7 +30,6 @@ The code requires the following R packages to be installed via `install.packages
 * `fields`: used for plotting
 
 
-
 ## Requirements - data
 
 The code requires the following raw data files to run:
