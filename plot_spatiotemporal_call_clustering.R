@@ -17,6 +17,12 @@ library(gplots)
 library(fields)
 library(viridis)
 
+#-----------GRAPHICS--------
+#make compatible with windows OS
+if(.Platform$OS.type=="windows") {
+  quartz<-function() windows()
+}
+
 #--------------PLOTTING---------
 
 for(sess.idx in 1:length(sessions)){

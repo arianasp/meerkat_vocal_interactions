@@ -111,7 +111,7 @@ There are two analyses: an analysis of call and response patterns (as a function
 
 * After this script finishes running, it will save output files called `{calltype}_clustering_{groupyear}.RData` for each group-year (HM2017, HM2019, L2019). This file will be saved in the directory that you specify at the top of the script (`savedir`).
 
-* **NOTE:** This script will take many hours to run on a typical laptop. It is suggested to run it on a machine you don't mind leaving for awhile! Alternatively, you can use the pre-generated results files provided with the manuscript. We also provide functionality for testing the code by setting the flag `testflag <- T`. This will only generate clustering metrics for a very small subset of the data. It can be used to test the code, however please note that the results will be nonsense! These files will be saved with a `_test` flag at the end of the filename.
+* **NOTE:** This script will take several hours to run on a typical laptop. It is suggested to run it on a machine you don't mind leaving for awhile! Alternatively, you can use the pre-generated results files provided with the manuscript. We also provide functionality for testing the code by setting the flag `testflag <- T`. This will only generate clustering metrics for a very small subset of the data. It can be used to test the code, however please note that the results will be nonsense! These files will be saved with a `_test` flag at the end of the filename.
 
 **Step 2: Plot the results**. This can be done using the script `plot_spatiotemporal_call_clustering.R`. 
 
