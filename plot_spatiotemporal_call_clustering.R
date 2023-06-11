@@ -4,7 +4,7 @@
 
 #-------YOU WILL NEED TO MODIFY THESE PARAMETERS TO RUN ON YOUR MACHINE-----------
 
-savedir <- '~/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/'
+savedir <- '~/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/paper_data_to_submit/precomputed/'
 testflag <- F
 callType <- 'sn'
 

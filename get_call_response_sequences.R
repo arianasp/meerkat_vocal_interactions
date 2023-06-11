@@ -66,11 +66,11 @@ savedir <- '~/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/'
 
 #list of call types to include in the set of calls by the initial caller (which determines the 0 point of the correlogram)
 #Options are either 'cc' (for close calls) or 'sn' (for short note calls)
-caller.calltype <- 'cc' 
+caller.calltype <- 'sn' 
 
 #list of call types of include in the set of calls by the responder (determines the curve in the correlogram)
 #Options are either 'cc' (for close calls) or 'sn' (for short note calls)
-responder.calltype <- 'cc'
+responder.calltype <- 'sn'
 
 #----------YOU SHOULD GENERALLY NOT NEED TO MODIFY THESE PARAMETERS--------------
 #whether to save output
@@ -347,6 +347,11 @@ callresp.seqs <- matrix(data=NA,nrow=nrow(callresp),ncol = length(tseq))
 timestamp()
 print('gathering vocal sequences across all recording periods')
 for(i in 1:nrow(callresp.seqs)){
+  
+  #print progress
+  if(i %% 10000 == 0){
+    print(paste(i, '/', nrow(callresp.seqs)))
+  }
   
   #get the time point that we will consider to be 0 (the time of caller's call, either beginning or end of it)
   if(trigger.on == 'begin'){

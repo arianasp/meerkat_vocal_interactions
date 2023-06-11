@@ -7,7 +7,7 @@
 #-------YOU WILL NEED TO MODIFY THESE PARAMETERS TO RUN ON YOUR MACHINE-----------
 
 #file to use for the plots (outputted from get_call_response_sequences)
-filename <- '~/Dropbox/meerkats/results/call_interactions/callresp_cc_cc_bw0.1.RData'
+filename <- '~/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/precomputed/callresp_sn_sn_bw0.1.RData'
 
 #data directory where ind info (and gps data) is stored 
 datadir <- '~/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/paper_data_to_submit/'
@@ -33,10 +33,6 @@ library(viridis)
 #make compatible with windows OS
 if(.Platform$OS.type=="windows") {
   quartz<-function() windows()
-}
-#make compatible with Linux (untested)
-if(.Platform$OS.type == 'unix') {
-  quartz<-function() x11()
 }
 
 #--------------------HELPER FUNCS---------------
