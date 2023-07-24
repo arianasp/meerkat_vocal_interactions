@@ -9,19 +9,17 @@ library(zoo)
 library(fields)
 library(viridis)
 
-#FUNCTIONS
-source('~/Dropbox/code_ari/Meerkat_leadership_hackathon/INFLUENCE_PAPER/scripts/functions.R')
-
 #PARAMS
 groupyears <- c('HM2017','HM2019','L2019')
-dt <- 10 #time window
+dt <- 60 #time window
 indir <- '/Users/Ari/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/paper_data_to_submit/'
-outdir <- '/Users/Ari/Dropbox/meerkats/meerkats_shared/ari/vocal_interactions/plots_2023-07-20/callrate_dt10_manualbins/'
+outdir <- '/Users/Ari/Dropbox/meerkats/meerkats_shared/ari/vocal_interactions/plots_2023-07-20/callrate_dt60_R10_manualbins/'
 min_n_tracked <- 5
-n_speed_bins <- 9
 n_dist_bins <- 8
-max_dist <- 100 #which distance to use above which we don't count dyadic distances
-
+max_dist <- 100 #distance above which we don't count dyadic distances for the mean dyadic distance change plots
+R_neighbor < - 10 #local neighborhood radius
+speed_bins <- c(0,1,2,5,10,25,50,400) #speed bins
+neighbor_change_bins <- c(-10.5,-3.5,-2.5,-1.5,-.5,.5,1.5,2.5,3.5,10.5)
 
 #LOOP OVER GROUPS AND STORE METRICS DATA
 data <- list()
@@ -57,20 +55,11 @@ for(g in 1:length(groupyears)){
   n_times <- ncol(allX)
   n_days <- length(dayIdx)-1
   
-  #-------------COMPUTE METRICS-----------
-  
-  #get group centroid
-  centrX <- colMeans(allX, na.rm=T)
-  centrY <- colMeans(allY, na.rm=T)
-  
-  #remove data for fewer than min_n_tracked individuals tracked
+  #get number tracked
   n_tracked <- colSums(!is.na(allX))
-  centrX[which(n_tracked < min_n_tracked)] <- NA
-  centrY[which(n_tracked < min_n_tracked)] <- NA
   
-  #get spatially discretized headings and relative positions etc
-  relPos <- relativePos(x = allX, y = allY, discrSpatial = T, step = 20, futur=F)
-  
+  #-------------COMPUTE METRICS-----------
+
   #calculate individual speeds
   speeds <- matrix(NA, nrow = nrow(allX), ncol=ncol(allX))
   for(i in 1:n_inds){
@@ -90,13 +79,17 @@ for(g in 1:length(groupyears)){
     for(j in i:n_inds){
       dyad_dists[i,j,] <- dyad_dists[j,i,] <- sqrt((allX[i,] - allX[j,])^2 + (allY[i,] - allY[j,])^2)
     }
+    dyad_dists[i,i,] <- NA
   }
   dyad_dists[which(dyad_dists>max_dist)] <- NA #remove dyadic distances above the max dist threshold - don't include them in the analysis
   
-  #calculate movement relative to group centroid
-  #change in distance from centroid (dist_change) 
-  #change in relative position relative to moving reference frame of group (rel_pos_change)
-  rel_pos_change <- dist_change <- dist_from_centr <- mean_dyad_dist_change <- matrix(NA, nrow = n_inds, ncol = n_times)
+  #get how many individuals in local neighborhood (within radius R_neighbor)
+  n_neighbors <- apply(dyad_dists <= R_neighbor, c(1,3), sum, na.rm=T)
+  n_neighbors[,which(n_tracked < min_n_tracked)] <- NA
+  
+  #calculate mean absolute change in dyadic distance relative to all neighbors within a max radius (mean_dyad_dist_change)
+  #also calculate change in neighbors within R_neighbor (neighbor_change)
+  mean_dyad_dist_change <- neighbor_change <- matrix(NA, nrow = n_inds, ncol = n_times)
   for(i in 1:n_inds){
     for(d in 1:n_days){
       
@@ -107,17 +100,11 @@ for(g in 1:length(groupyears)){
       t_fut <- t_idxs[(dt+1):length(t_idxs)]
       t_now <- t_idxs[1:(length(t_idxs)-dt)]
       
-      #distance of the individual from the centroid over time
-      dist_from_centr[i,t_idxs] <- sqrt((allX[i,t_idxs] - centrX[t_idxs])^2 + (allY[i,t_idxs] - centrY[t_idxs])^2)
-      
-      #change in distance from centroid
-      dist_change[i, t_now] <- (dist_from_centr[i,t_fut] - dist_from_centr[i,t_now]) / dt * 60
-      
-      #change in relative position
-      rel_pos_change[i, t_now] <- sqrt((relPos$relative_ind_X[i, t_fut] - relPos$relative_ind_X[i, t_now])^2 + (relPos$relative_ind_Y[i,t_fut] - relPos$relative_ind_Y[i,t_now])^2)
-      
       #get mean change in dyadic distance relative to all neighbors < max_dist
       mean_dyad_dist_change[i, t_now] <- colMeans(abs(dyad_dists[i,,t_fut] - dyad_dists[i,,t_now]),na.rm=T)
+      
+      #get neighborhood change
+      neighbor_change[i, t_now] <- n_neighbors[i, t_fut] - n_neighbors[i, t_now]
       
     }
   }
@@ -179,17 +166,11 @@ for(g in 1:length(groupyears)){
   data[[g]]$sn_callrates <- sn_callrates
   data[[g]]$cc_callrates_zscore <- cc_callrates_zscore
   data[[g]]$sn_callrates_zscore <- sn_callrates_zscore
+  data[[g]]$n_neighbors <- n_neighbors
+  data[[g]]$neighbor_change <- neighbor_change
+  data[[g]]$n_tracked <- n_tracked
   
 }
-  
-#----------------GET BINS--------------------
-#log_speed_bins <- seq(quantile(log_speeds,0.01,na.rm=T), quantile(log_speeds,0.99,na.rm=T), length.out = n_speed_bins)
-#dist_centr_bins <- seq(0, quantile(dist_from_centr, 0.99, na.rm=T), length.out = n_dist_bins)
-#dist_change_bins <- seq(quantile(dist_change, 0.01,na.rm=T), quantile(dist_change, 0.99, na.rm=T), length.out=n_dist_bins)
-#relX_bins <- c(-100,-50,-25,-10, -5, 0, 5, 10, 25, 50, 100)
-#rel_pos_change_bins <- seq(quantile(log(rel_pos_change), 0.01, na.rm=T), quantile(log(rel_pos_change), 0.99, na.rm=T), length.out = n_dist_bins)
-#speed_bins <- quantile(speeds, seq(0,1,length.out=n_speed_bins),na.rm=T)
-speed_bins <- c(0,1,2,5,10,25,50,400)
 
 #------------PLOTS------------
   
@@ -203,13 +184,18 @@ for(g in 1:length(groupyears)){
   sn_callrates <- data[[g]]$sn_callrates 
   cc_callrates_zscore <- data[[g]]$cc_callrates_zscore 
   sn_callrates_zscore <- data[[g]]$sn_callrates_zscore 
+  neighbor_change <- data[[g]]$neighbor_change
+  n_neighbors <- data[[g]]$n_neighbors
+  n_tracked <- data[[g]]$n_tracked
   
+  #bins
   dyad_dist_change_bins <- quantile(mean_dyad_dist_change, seq(0,1,length.out=8),na.rm=T)
+  n_neighbor_bins <- seq(-.5, max(n_neighbors,na.rm=T)+.5, 1)
   
   #----------Bivariate plots----
   #PLOT 1-2: Individual speed vs mean call rates
-  quartz()
-  par(mfrow=c(2,2))
+  quartz(height = 10, width = 6)
+  par(mfrow=c(4,2))
   mean_cc_rates <- mean_sn_rates <- rep(NA, length(speed_bins)-1)
   for(i in 1:(length(speed_bins)-1)){
     idxs <- which(speeds >= speed_bins[i] & speeds < speed_bins[i+1])
@@ -234,13 +220,40 @@ for(g in 1:length(groupyears)){
   mids <- (dyad_dist_change_bins[1:(length(dyad_dist_change_bins)-1)] + dyad_dist_change_bins[2:length(dyad_dist_change_bins)])/2
   plot(mids, mean_cc_rates, pch = 19, xlab = 'Mean dyad dist change (m)', ylab = 'Mean CC rate', log = 'x')
   plot(mids, mean_sn_rates, pch = 19, xlab = 'Mean dyad dist change (m)', ylab = 'Mean SN rate', log = 'x')
-  dev.copy2pdf(file = paste0(outdir, 'callrate_vs_speed_and_rel_dyad_dist_change_',groupyear,'.pdf'))
+  
+  #PLOT 5-6: Neighborhood change vs mean call rates
+  mean_cc_rates <- mean_sn_rates <- rep(NA, length(neighbor_change_bins)-1)
+  for(i in 1:(length(neighbor_change_bins)-1)){
+    idxs <- which(neighbor_change >= neighbor_change_bins[i] & neighbor_change < neighbor_change_bins[i+1])
+    mean_cc_rates[i] <- mean(cc_callrates[idxs], na.rm=T)
+    mean_sn_rates[i] <- mean(sn_callrates[idxs], na.rm=T)
+  }
+  
+  #make plot
+  mids <- (neighbor_change_bins[1:(length(neighbor_change_bins)-1)] + neighbor_change_bins[2:length(neighbor_change_bins)])/2
+  plot(mids, mean_cc_rates, pch = 19, xlab = 'Neighbor change', ylab = 'Mean CC rate')
+  plot(mids, mean_sn_rates, pch = 19, xlab = 'Neighbor change', ylab = 'Mean SN rate')
+
+  #PLOT 7-8: N neighbors vs mean call rates
+  mean_cc_rates <- mean_sn_rates <- rep(NA, length(n_neighbor_bins)-1)
+  for(i in 1:(length(n_neighbor_bins)-1)){
+    idxs <- which(n_neighbors >= n_neighbor_bins[i] & n_neighbors < n_neighbor_bins[i+1])
+    mean_cc_rates[i] <- mean(cc_callrates[idxs], na.rm=T)
+    mean_sn_rates[i] <- mean(sn_callrates[idxs], na.rm=T)
+  }
+  
+  #make plot
+  mids <- (n_neighbor_bins[1:(length(n_neighbor_bins)-1)] + n_neighbor_bins[2:length(n_neighbor_bins)])/2
+  plot(mids, mean_cc_rates, pch = 19, xlab = '# neighbors', ylab = 'Mean CC rate')
+  plot(mids, mean_sn_rates, pch = 19, xlab = '# neighbors', ylab = 'Mean SN rate')
+  
+  dev.copy2pdf(file = paste0(outdir, 'callrate_vs_speed_and_neighbors_',groupyear,'.pdf'))
   dev.off()
   
   #--------Bivariate plots - normalized -----
   #PLOT 1-2: Individual speed vs mean call rates - normed
-  quartz()
-  par(mfrow=c(2,2))
+  quartz(height = 10, width = 6)
+  par(mfrow=c(4,2))
   mean_cc_rates <- mean_sn_rates <- rep(NA, length(speed_bins)-1)
   for(i in 1:(length(speed_bins)-1)){
     idxs <- which(speeds >= speed_bins[i] & speeds < speed_bins[i+1])
@@ -265,7 +278,34 @@ for(g in 1:length(groupyears)){
   mids <- (dyad_dist_change_bins[1:(length(dyad_dist_change_bins)-1)] + dyad_dist_change_bins[2:length(dyad_dist_change_bins)])/2
   plot(mids, mean_cc_rates, pch = 19, xlab = 'Mean dyad dist change (m)', ylab = 'Mean CC rate z-score', log = 'x')
   plot(mids, mean_sn_rates, pch = 19, xlab = 'Mean dyad dist change (m)', ylab = 'Mean SN rate z-score', log = 'x')
-  dev.copy2pdf(file = paste0(outdir, 'callrate_vs_speed_and_rel_dyad_dist_change_zscore',groupyear,'.pdf'))
+  
+  #PLOT 5-6: Neighborhood change vs mean call rates
+  mean_cc_rates <- mean_sn_rates <- rep(NA, length(neighbor_change_bins)-1)
+  for(i in 1:(length(neighbor_change_bins)-1)){
+    idxs <- which(neighbor_change >= neighbor_change_bins[i] & neighbor_change < neighbor_change_bins[i+1])
+    mean_cc_rates[i] <- mean(cc_callrates_zscore[idxs], na.rm=T)
+    mean_sn_rates[i] <- mean(sn_callrates_zscore[idxs], na.rm=T)
+  }
+  
+  #make plot
+  mids <- (neighbor_change_bins[1:(length(neighbor_change_bins)-1)] + neighbor_change_bins[2:length(neighbor_change_bins)])/2
+  plot(mids, mean_cc_rates, pch = 19, xlab = 'Neighbor change', ylab = 'Mean CC rate - zscore')
+  plot(mids, mean_sn_rates, pch = 19, xlab = 'Neighbor change', ylab = 'Mean SN rate - zscore')
+  
+  #PLOT 7-8: N neighbors vs mean call rates
+  mean_cc_rates <- mean_sn_rates <- rep(NA, length(n_neighbor_bins)-1)
+  for(i in 1:(length(n_neighbor_bins)-1)){
+    idxs <- which(n_neighbors >= n_neighbor_bins[i] & n_neighbors < n_neighbor_bins[i+1])
+    mean_cc_rates[i] <- mean(cc_callrates_zscore[idxs], na.rm=T)
+    mean_sn_rates[i] <- mean(sn_callrates_zscore[idxs], na.rm=T)
+  }
+  
+  #make plot
+  mids <- (n_neighbor_bins[1:(length(n_neighbor_bins)-1)] + n_neighbor_bins[2:length(n_neighbor_bins)])/2
+  plot(mids, mean_cc_rates, pch = 19, xlab = '# neighbors', ylab = 'Mean CC rate - zscore')
+  plot(mids, mean_sn_rates, pch = 19, xlab = '# neighbors', ylab = 'Mean SN rate - zscore')
+  
+  dev.copy2pdf(file = paste0(outdir, 'callrate_vs_speed_and_neighbors_zscore',groupyear,'.pdf'))
   dev.off()
   
   #---------------3d plots---------------
@@ -310,108 +350,96 @@ for(g in 1:length(groupyears)){
 
   dev.copy2pdf(file = paste0(outdir, 'callrate_vs_speed_and_rel_dyad_dist_change_2d_',groupyear,'.pdf'))
   dev.off()
+  
+  #---------------3d plots neighbor change---------------
+  #3D plot - call rate vs speed and mean dyadic distance change
+  cc_rates_2d <- sn_rates_2d <- nsamps <- matrix(NA, nrow = length(speed_bins)-1, ncol = length(neighbor_change_bins)-1)
+  for(i in 1:(length(speed_bins)-1)){
+    for(j in 1:(length(neighbor_change_bins)-1)){
+      idxs <- which(speeds >= speed_bins[i] &
+                      speeds < speed_bins[i+1] &
+                      neighbor_change >= neighbor_change_bins[j] &
+                      neighbor_change < neighbor_change_bins[j+1])
+      nsamps[i,j] <- length(idxs)
+      if(length(idxs)>1000){
+        cc_rates_2d[i,j] <- mean(cc_callrates[idxs],na.rm=T)
+        sn_rates_2d[i,j] <- mean(sn_callrates[idxs],na.rm=T)
+      }
+    }
+  }
+  quartz()
+  par(mfrow=c(2,2))
+  image.plot(z=cc_rates_2d, col = viridis(256), xlab = 'Speed ', ylab ='Neighbor change',main = 'CC')
+  image.plot(z=sn_rates_2d, col = viridis(256), xlab = 'Speed ', ylab ='Neighbor change',main='SN')
+  
+  #3D plot - call rate vs speed and mean dyadic distance change - zscore
+  cc_rates_2d <- sn_rates_2d <- nsamps <- matrix(NA, nrow = length(speed_bins)-1, ncol = length(neighbor_change_bins)-1)
+  for(i in 1:(length(speed_bins)-1)){
+    for(j in 1:(length(neighbor_change_bins)-1)){
+      idxs <- which(speeds >= speed_bins[i] &
+                      speeds < speed_bins[i+1] &
+                      neighbor_change >= neighbor_change_bins[j] &
+                      neighbor_change < neighbor_change_bins[j+1])
+      nsamps[i,j] <- length(idxs)
+      if(length(idxs)>1000){
+        cc_rates_2d[i,j] <- mean(cc_callrates_zscore[idxs],na.rm=T)
+        sn_rates_2d[i,j] <- mean(sn_callrates_zscore[idxs],na.rm=T)
+      }
+    }
+  }
+  
+  image.plot(z=cc_rates_2d, col = viridis(256), xlab = 'Speed ', ylab ='Neighbor change',main = 'CC - zscore')
+  image.plot(z=sn_rates_2d, col = viridis(256), xlab = 'Speed ', ylab ='Neighbor change',main='SN - zscore')
+  
+  dev.copy2pdf(file = paste0(outdir, 'callrate_vs_speed_and_neighbor_change_2d_',groupyear,'.pdf'))
+  dev.off()
+  
+  #---------------3d plots number of neighbors---------------
+  #3D plot - call rate vs speed and mean dyadic distance change
+  cc_rates_2d <- sn_rates_2d <- nsamps <- matrix(NA, nrow = length(speed_bins)-1, ncol = length(n_neighbor_bins)-1)
+  for(i in 1:(length(speed_bins)-1)){
+    for(j in 1:(length(n_neighbor_bins)-1)){
+      idxs <- which(speeds >= speed_bins[i] &
+                      speeds < speed_bins[i+1] &
+                      n_neighbors >= n_neighbor_bins[j] &
+                      n_neighbors < n_neighbor_bins[j+1])
+      nsamps[i,j] <- length(idxs)
+      if(length(idxs)>1000){
+        cc_rates_2d[i,j] <- mean(cc_callrates[idxs],na.rm=T)
+        sn_rates_2d[i,j] <- mean(sn_callrates[idxs],na.rm=T)
+      }
+    }
+  }
+  quartz()
+  par(mfrow=c(2,2))
+  image.plot(z=cc_rates_2d, col = viridis(256), xlab = 'Speed ', ylab ='# neighbors',main = 'CC')
+  image.plot(z=sn_rates_2d, col = viridis(256), xlab = 'Speed ', ylab ='# neighbors',main='SN')
+  
+  #3D plot - call rate vs speed and mean dyadic distance change - zscore
+  cc_rates_2d <- sn_rates_2d <- nsamps <- matrix(NA, nrow = length(speed_bins)-1, ncol = length(n_neighbor_bins)-1)
+  for(i in 1:(length(speed_bins)-1)){
+    for(j in 1:(length(n_neighbor_bins)-1)){
+      idxs <- which(speeds >= speed_bins[i] &
+                      speeds < speed_bins[i+1] &
+                      n_neighbors >= n_neighbor_bins[j] &
+                      n_neighbors < n_neighbor_bins[j+1])
+      nsamps[i,j] <- length(idxs)
+      if(length(idxs)>1000){
+        cc_rates_2d[i,j] <- mean(cc_callrates_zscore[idxs],na.rm=T)
+        sn_rates_2d[i,j] <- mean(sn_callrates_zscore[idxs],na.rm=T)
+      }
+    }
+  }
+  
+  image.plot(z=cc_rates_2d, col = viridis(256), xlab = 'Speed ', ylab ='# neighbors',main = 'CC - zscore')
+  image.plot(z=sn_rates_2d, col = viridis(256), xlab = 'Speed ', ylab ='# neighbors',main='SN - zscore')
+  
+  dev.copy2pdf(file = paste0(outdir, 'callrate_vs_speed_and_n_neighbors_2d_',groupyear,'.pdf'))
+  dev.off()
+  
+  
 }
 
-# #PLOT: Individual speed vs mean call rates - by individual
-# mean_cc_rates <- mean_sn_rates <- nsamp <- matrix(NA, nrow = n_inds, ncol = length(log_speed_bins)-1)
-# for(i in 1:(length(log_speed_bins)-1)){
-#   for(ind in 1:n_inds){
-#     idxs <- which(log_speeds[ind,] >= log_speed_bins[i] & log_speeds[ind,] < log_speed_bins[i+1])
-#     mean_cc_rates[ind, i] <- mean(cc_callrates[ind,idxs]>0, na.rm=T)
-#     mean_sn_rates[ind, i] <- mean(sn_callrates[ind,idxs]>0, na.rm=T)
-#     nsamp[ind,i] <- length(idxs)
-#   }
-# }
-# quartz()
-# par(mfrow=c(1,2))
-# plot(NULL, xlim = c(min(log_speed_bins),max(log_speed_bins)), ylim = c(0, max(mean_cc_rates,na.rm=T)), xlab = 'Log speed (m/min)', ylab = 'P(CC)')
-# for(ind in 1:n_inds){
-#   lines(log_speed_bins[2:length(log_speed_bins)], mean_cc_rates[ind,], col = 'gray')
-# }
-# 
-# plot(NULL, xlim = c(min(log_speed_bins),max(log_speed_bins)), ylim = c(0, max(mean_sn_rates,na.rm=T)), xlab = 'Log speed (m/min)', ylab = 'P(SN)')
-# for(ind in 1:n_inds){
-#   lines(log_speed_bins[2:length(log_speed_bins)], mean_sn_rates[ind,], col = 'gray')
-# }
-# 
-# # #PLOT: Front-back position vs call rate - aggregated across individuals and by individual
-# # mean_cc_rates_all <- mean_sn_rates_all <- nsamp_all <- rep(NA, length(relX_bins)-1)
-# # for(i in 1:length(mean_cc_rates_all)){
-# #   idxs <- which(relPos$relative_ind_X >= relX_bins[i] & relPos$relative_ind_X < relX_bins[i+1])
-# #   nsamp[i] <- length(idxs)
-# #   mean_cc_rates_all[i] <- mean(cc_callrates[idxs]>0,na.rm=T)
-# #   mean_sn_rates_all[i] <- mean(sn_callrates[idxs]>0,na.rm=T)
-# # }
-# # 
-# # mean_cc_rates <- mean_sn_rates <- nsamp <- matrix(NA, nrow = n_inds, ncol = length(relX_bins)-1)
-# # for(i in 1:n_inds){
-# #   for(j in 1:length(mean_cc_rates_all)){
-# #     idxs <- which(relPos$relative_ind_X[i,] >= relX_bins[j] & relPos$relative_ind_X[i,] < relX_bins[j+1])
-# #     nsamp[i,j] <- length(idxs)
-# #     if(length(idxs)>0){
-# #       mean_cc_rates[i,j] <- mean(cc_callrates[i,idxs]>0,na.rm=T)
-# #       mean_sn_rates[i,j] <- mean(sn_callrates[i,idxs]>0,na.rm=T)
-# #     }
-# #   }
-# # }
-# # 
-# # quartz()
-# # par(mfrow=c(2,2))
-# # mids <- (relX_bins[1:(length(relX_bins)-1)] + relX_bins[2:length(relX_bins)])/2
-# # plot(mids, mean_cc_rates_all, pch = 19, xlab = 'Front-back position (m)', ylab = 'P(CC)')
-# # plot(mids, mean_sn_rates_all, pch = 19, xlab = 'Front-back position (m)', ylab = 'P(SN)')
-# # 
-# # plot(NULL, xlim = c(min(relX_bins), max(relX_bins)),ylim = c(min(mean_cc_rates,na.rm=T), max(mean_cc_rates,na.rm=T)),xlab = 'Front-back position (m)', ylab = 'P(CC)')
-# # for(i in 1:n_inds){
-# #   lines(mids, mean_cc_rates[i,],lwd=2,col='gray')
-# # }
-# # 
-# # plot(NULL, xlim = c(min(relX_bins), max(relX_bins)),ylim = c(min(mean_sn_rates,na.rm=T), max(mean_sn_rates,na.rm=T)),xlab = 'Front-back position (m)', ylab = 'P(SN)')
-# # for(i in 1:n_inds){
-# #   lines(mids, mean_sn_rates[i,],lwd=2,col='gray')
-# # }
-# # 
-# 
-# #---------------------multivariable heat map plots-------------
-# #PLOT 4: 3D plot - call rate vs dist from centroid change and speed
-# cc_rates_2d <- sn_rates_2d <- nsamps <- matrix(NA, nrow = length(log_speed_bins)-1, ncol = length(dist_change_bins)-1)
-# for(i in 1:(length(log_speed_bins)-1)){
-#   for(j in 1:(length(dist_change_bins)-1)){
-#     idxs <- which(log_speeds >= log_speed_bins[i] &
-#                     log_speeds < log_speed_bins[i+1] &
-#                     dist_change >= dist_change_bins[j] &
-#                     dist_change < dist_change_bins[j+1])
-#     nsamps[i,j] <- length(idxs)
-#     if(length(idxs)>1000){
-#       cc_rates_2d[i,j] <- mean(cc_callrates[idxs]>0,na.rm=T)
-#       sn_rates_2d[i,j] <- mean(sn_callrates[idxs]>0,na.rm=T)
-#     }
-#   }
-# }
-# quartz()
-# par(mfrow=c(1,2))
-# image.plot(log_speed_bins, dist_change_bins, cc_rates_2d, zlim = c(0, max(cc_rates_2d,na.rm=T)), col = viridis(256), xlab = 'Log speed', ylab ='Change in dist from centroid',main = 'CC')
-# image.plot(log_speed_bins, dist_change_bins, sn_rates_2d, zlim = c(0, max(cc_rates_2d,na.rm=T)), col = viridis(256), xlab = 'Log speed', ylab ='Change in dist from centroid',main='SN')
-# 
-# #PLOT 5: 3D plot - call rate vs dist from centroid and speed
-# dist_centr_bins <- seq(0, quantile(dist_from_centr, 0.95, na.rm=T), length.out = 12)
-# cc_rates_2d <- sn_rates_2d <- nsamps <- matrix(NA, nrow = length(log_speed_bins)-1, ncol = length(dist_centr_bins)-1)
-# for(i in 1:(length(log_speed_bins)-1)){
-#   for(j in 1:(length(dist_centr_bins)-1)){
-#     idxs <- which(log_speeds >= log_speed_bins[i] &
-#                     log_speeds < log_speed_bins[i+1] &
-#                     dist_from_centr >= dist_centr_bins[j] &
-#                     dist_from_centr < dist_centr_bins[j+1])
-#     nsamps[i,j] <- length(idxs)
-#     if(length(idxs)>1000){
-#       cc_rates_2d[i,j] <- mean(cc_callrates[idxs]>0,na.rm=T)
-#       sn_rates_2d[i,j] <- mean(sn_callrates[idxs]>0,na.rm=T)
-#     }
-#   }
-# }
-# quartz()
-# par(mfrow=c(1,2))
-# image.plot(log_speed_bins, dist_centr_bins, cc_rates_2d, zlim = c(0, max(cc_rates_2d,na.rm=T)), col = viridis(256), xlab = 'Log speed', ylab ='Dist from centroid',main = 'CC')
-# image.plot(log_speed_bins, dist_centr_bins, sn_rates_2d, zlim = c(0, max(cc_rates_2d,na.rm=T)), col = viridis(256), xlab = 'Log speed', ylab ='Dist from centroid',main='SN')
-# 
-
+#Look at speed results when at least half group giving close calls (filter out non-foraging periods)
+#Call rate vs. number of neighbors and surroundedness (circular variance)
+#Call rate vs number of neighbors and their call rates (?)
