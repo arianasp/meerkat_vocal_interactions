@@ -11,17 +11,18 @@ library(viridis)
 
 #PARAMS
 groupyears <- c('HM2017','HM2019','L2019')
-dt <- 60 #time window
+dt <- 10 #time window
 indir <- '/Users/Ari/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/paper_data_to_submit/'
-outdir <- '/Users/Ari/Dropbox/meerkats/meerkats_shared/ari/vocal_interactions/plots_2023-07-20/callrate_dt60_R10_manualbins/'
+outdir <- '/Users/Ari/Dropbox/meerkats/meerkats_shared/ari/vocal_interactions/plots_2023-07-20/callrate_dt10_R10/'
 min_n_tracked <- 5
-n_dist_bins <- 8
 max_dist <- 100 #distance above which we don't count dyadic distances for the mean dyadic distance change plots
-R_neighbor < - 10 #local neighborhood radius
-speed_bins <- c(0,1,2,5,10,25,50,400) #speed bins
+R_neighbor <- 10 #local neighborhood radius
+speed_bins <- c(0,1,2,5,10,25,50,100,400) #speed bins
 neighbor_change_bins <- c(-10.5,-3.5,-2.5,-1.5,-.5,.5,1.5,2.5,3.5,10.5)
+surroundedness_bins <- seq(0,1,length.out = 10)
+dt_forage <- 60 #time window to use to specfiy whether the group is foraging (if at least half of the group gives a cc during this window)
 
-#LOOP OVER GROUPS AND STORE METRICS DATA
+#------LOOP OVER GROUPS AND STORE METRICS DATA------
 data <- list()
 
 setwd(indir)
@@ -87,6 +88,19 @@ for(g in 1:length(groupyears)){
   n_neighbors <- apply(dyad_dists <= R_neighbor, c(1,3), sum, na.rm=T)
   n_neighbors[,which(n_tracked < min_n_tracked)] <- NA
   
+  #get surroundedness - circular variance of vectors pointing to all neighbors
+  surroundedness <- matrix(NA, nrow = n_inds, ncol = n_times)
+  for(i in 1:n_inds){
+    dx <- allX - matrix(rep(allX[i,], each = n_inds), nrow = n_inds, ncol = n_times)
+    dy <- allY - matrix(rep(allY[i,], each = n_inds), nrow = n_inds, ncol = n_times)
+    dx[i,] <- NA
+    dy[i,] <- NA
+    norms <- sqrt(dx^2 + dy^2)
+    dx_u <- dx / norms
+    dy_u <- dy / norms
+    surroundedness[i,] <- -sqrt(colSums(dx_u, na.rm=T)^2 + colSums(dy_u, na.rm=T)^2) / colSums(!is.na(dx_u)) + 1
+  }
+  
   #calculate mean absolute change in dyadic distance relative to all neighbors within a max radius (mean_dyad_dist_change)
   #also calculate change in neighbors within R_neighbor (neighbor_change)
   mean_dyad_dist_change <- neighbor_change <- matrix(NA, nrow = n_inds, ncol = n_times)
@@ -114,36 +128,59 @@ for(g in 1:length(groupyears)){
   calls$tidx <- match(as.character(calls$datetime),as.character(as.POSIXct(timeLine,tz='UTC')))
   ccs <- calls[which(grepl('cc',calls$stn_call_type) & calls$pred_focalType=='F'),]
   sns <- calls[which(grepl('sn',calls$stn_call_type) & calls$pred_focalType=='F'),]
+  als <- calls[which(grepl('al',calls$stn_call_type) & calls$pred_focalType=='F'),]
   
-  cc_timeLine <- sn_timeLine <- matrix(0, nrow = n_inds, ncol = n_times)
+  cc_timeLine <- sn_timeLine <- al_timeLine <- matrix(0, nrow = n_inds, ncol = n_times)
   for(i in 1:n_inds){
     
     cc_times <- ccs$tidx[which(ccs$ind == indInfo$code[i])]
     sn_times <- sns$tidx[which(sns$ind == indInfo$code[i])]
+    al_times <- als$tidx[which(als$ind == indInfo$code[i])]
     cc_times <- cc_times[!is.na(cc_times)]
     sn_times <- sn_times[!is.na(sn_times)]
+    al_times <- al_times[!is.na(al_times)]
     for(t in 1:length(cc_times)){
       cc_timeLine[i,cc_times[t]] <- cc_timeLine[i,cc_times[t]]+1
     }
     for(t in 1:length(sn_times)){
       sn_timeLine[i,sn_times[t]] <- sn_timeLine[i,sn_times[t]]+1
     }
+    for(t in 1:length(al_times)){
+      al_timeLine[i,al_times[t]] <- al_timeLine[i,al_times[t]]+1
+    }
   }
   
   #remove data when audio was not labeled
   cc_timeLine[!audioOn] <- NA
   sn_timeLine[!audioOn] <- NA
+  al_timeLine[!audioOn] <- NA
   
   #get call rates in the time window dt
-  cc_callrates <- sn_callrates <- matrix(NA, nrow = n_inds, ncol = n_times)
+  cc_callrates <- sn_callrates <- cc_prev_callrates <- al_prev_callrates <- matrix(NA, nrow = n_inds, ncol = n_times)
   for(i in 1:n_inds){
     cc_callrates[i,] <- rollapply(cc_timeLine[i,], width = dt, FUN = sum, na.rm=T, fill=NA, align = 'left') / dt * 60
     sn_callrates[i,] <- rollapply(sn_timeLine[i,], width = dt, FUN = sum, na.rm=T, fill=NA, align = 'left') / dt * 60
+    cc_prev_callrates[i,] <- rollapply(cc_timeLine[i,], width = dt_forage, FUN = sum, na.rm=T, fill = NA, align = 'right') / dt_forage * 60
+    al_prev_callrates[i,] <- rollapply(al_timeLine[i,], width = dt_forage, FUN = sum, na.rm=T, fill = NA, align = 'right') / dt_forage * 60
   }
   
   #remove data for anything when audio was not on
   cc_callrates[!audioOn] <- NA
   sn_callrates[!audioOn] <- NA
+  cc_prev_callrates[!audioOn] <- NA
+  al_prev_callrates[!audioOn] <- NA
+  
+  #get number of callers for ccs and short notes in each time step
+  cc_callers <- colSums(cc_prev_callrates > 0, na.rm=T)
+  al_callers <- colSums(al_prev_callrates > 0, na.rm=T)
+  tracked_callers <- colSums(!is.na(cc_prev_callrates)) #number of callers for which we have data at that timestep
+  
+  #fraction of individuals in the group giving cc's in the past dt_forage time
+  frac_cc_callers <- cc_callers / tracked_callers
+  frac_cc_callers[which(tracked_callers==0)] <- NA
+  #Remove data when less than half the group gave a close call in the past dt_forage (60 sec) and when there was any alarm calling
+  idxs_remove <- which(frac_cc_callers < 0.5 | al_callers > 0)
+  cc_callrates[,idxs_remove] <- sn_callrates[,idxs_remove] <- NA
   
   #normalize call probability by individual - use z score
   #TODO: How to normalize properly when data are very zero-inflated?
@@ -169,6 +206,12 @@ for(g in 1:length(groupyears)){
   data[[g]]$n_neighbors <- n_neighbors
   data[[g]]$neighbor_change <- neighbor_change
   data[[g]]$n_tracked <- n_tracked
+  data[[g]]$cc_prev_callrates <- cc_prev_callrates
+  data[[g]]$al_prev_callrates <- al_prev_callrates
+  data[[g]]$cc_callers <- cc_callers
+  data[[g]]$al_callers <- al_callers
+  data[[g]]$tracked_callers <- tracked_callers
+  data[[g]]$surroundedness <- surroundedness
   
 }
 
@@ -187,6 +230,10 @@ for(g in 1:length(groupyears)){
   neighbor_change <- data[[g]]$neighbor_change
   n_neighbors <- data[[g]]$n_neighbors
   n_tracked <- data[[g]]$n_tracked
+  cc_callers <- data[[g]]$cc_callers
+  sn_callers <- data[[g]]$sn_callers
+  tracked_callers <- data[[g]]$tracked_callers
+  surroundedness <- data[[g]]$surroundedness
   
   #bins
   dyad_dist_change_bins <- quantile(mean_dyad_dist_change, seq(0,1,length.out=8),na.rm=T)
@@ -209,30 +256,30 @@ for(g in 1:length(groupyears)){
   plot(mids, mean_sn_rates, pch = 19, xlab = 'Speed (m / min)', ylab = 'SN call rate (calls / min)', log = 'x')
   
   #PLOT 3-4: Movement relative to group vs mean call rates
-  mean_cc_rates <- mean_sn_rates <- rep(NA, length(dyad_dist_change_bins)-1)
-  for(i in 1:(length(dyad_dist_change_bins)-1)){
-    idxs <- which(mean_dyad_dist_change >= dyad_dist_change_bins[i] & mean_dyad_dist_change < dyad_dist_change_bins[i+1])
-    mean_cc_rates[i] <- mean(cc_callrates[idxs], na.rm=T)
-    mean_sn_rates[i] <- mean(sn_callrates[idxs], na.rm=T)
-  }
+  #mean_cc_rates <- mean_sn_rates <- rep(NA, length(dyad_dist_change_bins)-1)
+  #for(i in 1:(length(dyad_dist_change_bins)-1)){
+  #  idxs <- which(mean_dyad_dist_change >= dyad_dist_change_bins[i] & mean_dyad_dist_change < dyad_dist_change_bins[i+1])
+  #  mean_cc_rates[i] <- mean(cc_callrates[idxs], na.rm=T)
+  #  mean_sn_rates[i] <- mean(sn_callrates[idxs], na.rm=T)
+  #}
   
   #make plot
-  mids <- (dyad_dist_change_bins[1:(length(dyad_dist_change_bins)-1)] + dyad_dist_change_bins[2:length(dyad_dist_change_bins)])/2
-  plot(mids, mean_cc_rates, pch = 19, xlab = 'Mean dyad dist change (m)', ylab = 'Mean CC rate', log = 'x')
-  plot(mids, mean_sn_rates, pch = 19, xlab = 'Mean dyad dist change (m)', ylab = 'Mean SN rate', log = 'x')
+  #mids <- (dyad_dist_change_bins[1:(length(dyad_dist_change_bins)-1)] + dyad_dist_change_bins[2:length(dyad_dist_change_bins)])/2
+  #plot(mids, mean_cc_rates, pch = 19, xlab = 'Mean dyad dist change (m)', ylab = 'Mean CC rate', log = 'x')
+  #plot(mids, mean_sn_rates, pch = 19, xlab = 'Mean dyad dist change (m)', ylab = 'Mean SN rate', log = 'x')
   
   #PLOT 5-6: Neighborhood change vs mean call rates
-  mean_cc_rates <- mean_sn_rates <- rep(NA, length(neighbor_change_bins)-1)
-  for(i in 1:(length(neighbor_change_bins)-1)){
-    idxs <- which(neighbor_change >= neighbor_change_bins[i] & neighbor_change < neighbor_change_bins[i+1])
-    mean_cc_rates[i] <- mean(cc_callrates[idxs], na.rm=T)
-    mean_sn_rates[i] <- mean(sn_callrates[idxs], na.rm=T)
-  }
+  #mean_cc_rates <- mean_sn_rates <- rep(NA, length(neighbor_change_bins)-1)
+  #for(i in 1:(length(neighbor_change_bins)-1)){
+  #  idxs <- which(neighbor_change >= neighbor_change_bins[i] & neighbor_change < neighbor_change_bins[i+1])
+  #  mean_cc_rates[i] <- mean(cc_callrates[idxs], na.rm=T)
+  #  mean_sn_rates[i] <- mean(sn_callrates[idxs], na.rm=T)
+  #}
   
   #make plot
-  mids <- (neighbor_change_bins[1:(length(neighbor_change_bins)-1)] + neighbor_change_bins[2:length(neighbor_change_bins)])/2
-  plot(mids, mean_cc_rates, pch = 19, xlab = 'Neighbor change', ylab = 'Mean CC rate')
-  plot(mids, mean_sn_rates, pch = 19, xlab = 'Neighbor change', ylab = 'Mean SN rate')
+  #mids <- (neighbor_change_bins[1:(length(neighbor_change_bins)-1)] + neighbor_change_bins[2:length(neighbor_change_bins)])/2
+  #plot(mids, mean_cc_rates, pch = 19, xlab = 'Neighbor change', ylab = 'Mean CC rate')
+  #plot(mids, mean_sn_rates, pch = 19, xlab = 'Neighbor change', ylab = 'Mean SN rate')
 
   #PLOT 7-8: N neighbors vs mean call rates
   mean_cc_rates <- mean_sn_rates <- rep(NA, length(n_neighbor_bins)-1)
@@ -247,8 +294,23 @@ for(g in 1:length(groupyears)){
   plot(mids, mean_cc_rates, pch = 19, xlab = '# neighbors', ylab = 'Mean CC rate')
   plot(mids, mean_sn_rates, pch = 19, xlab = '# neighbors', ylab = 'Mean SN rate')
   
-  dev.copy2pdf(file = paste0(outdir, 'callrate_vs_speed_and_neighbors_',groupyear,'.pdf'))
-  dev.off()
+  
+  #PLOTS 9-10: surroundedness vs call rate
+  mean_cc_rates <- mean_sn_rates <- rep(NA, length(surroundedness_bins)-1)
+  for(i in 1:(length(surroundedness_bins)-1)){
+    idxs <- which(surroundedness >= surroundedness_bins[i] & surroundedness < surroundedness_bins[i+1])
+    mean_cc_rates[i] <- mean(cc_callrates[idxs], na.rm=T)
+    mean_sn_rates[i] <- mean(sn_callrates[idxs], na.rm=T)
+  }
+  
+  #make plot
+  mids <- (surroundedness_bins[1:(length(surroundedness_bins)-1)] + surroundedness_bins[2:length(surroundedness_bins)])/2
+  plot(mids, mean_cc_rates, pch = 19, xlab = 'Surroundedness', ylab = 'Mean CC rate')
+  plot(mids, mean_sn_rates, pch = 19, xlab = 'Surroundedness', ylab = 'Mean SN rate')
+  
+  
+  #dev.copy2pdf(file = paste0(outdir, 'callrate_vs_speed_and_neighbors_',groupyear,'.pdf'))
+  #dev.off()
   
   #--------Bivariate plots - normalized -----
   #PLOT 1-2: Individual speed vs mean call rates - normed
@@ -266,32 +328,32 @@ for(g in 1:length(groupyears)){
   plot(mids, mean_cc_rates, pch = 19, xlab = 'Speed (m / min)', ylab = 'Mean CC rate z-score', log = 'x')
   plot(mids, mean_sn_rates, pch = 19, xlab = 'Speed (m / min)', ylab = 'Mean CC rate z-score', log = 'x')
   
-  #PLOT 3-4: Movement relative to group vs mean call rates
-  mean_cc_rates <- mean_sn_rates <- rep(NA, length(dyad_dist_change_bins)-1)
-  for(i in 1:(length(dyad_dist_change_bins)-1)){
-    idxs <- which(mean_dyad_dist_change >= dyad_dist_change_bins[i] & mean_dyad_dist_change < dyad_dist_change_bins[i+1])
-    mean_cc_rates[i] <- mean(cc_callrates_zscore[idxs], na.rm=T)
-    mean_sn_rates[i] <- mean(sn_callrates_zscore[idxs], na.rm=T)
-  }
-  
-  #make plot
-  mids <- (dyad_dist_change_bins[1:(length(dyad_dist_change_bins)-1)] + dyad_dist_change_bins[2:length(dyad_dist_change_bins)])/2
-  plot(mids, mean_cc_rates, pch = 19, xlab = 'Mean dyad dist change (m)', ylab = 'Mean CC rate z-score', log = 'x')
-  plot(mids, mean_sn_rates, pch = 19, xlab = 'Mean dyad dist change (m)', ylab = 'Mean SN rate z-score', log = 'x')
-  
-  #PLOT 5-6: Neighborhood change vs mean call rates
-  mean_cc_rates <- mean_sn_rates <- rep(NA, length(neighbor_change_bins)-1)
-  for(i in 1:(length(neighbor_change_bins)-1)){
-    idxs <- which(neighbor_change >= neighbor_change_bins[i] & neighbor_change < neighbor_change_bins[i+1])
-    mean_cc_rates[i] <- mean(cc_callrates_zscore[idxs], na.rm=T)
-    mean_sn_rates[i] <- mean(sn_callrates_zscore[idxs], na.rm=T)
-  }
-  
-  #make plot
-  mids <- (neighbor_change_bins[1:(length(neighbor_change_bins)-1)] + neighbor_change_bins[2:length(neighbor_change_bins)])/2
-  plot(mids, mean_cc_rates, pch = 19, xlab = 'Neighbor change', ylab = 'Mean CC rate - zscore')
-  plot(mids, mean_sn_rates, pch = 19, xlab = 'Neighbor change', ylab = 'Mean SN rate - zscore')
-  
+  # #PLOT 3-4: Movement relative to group vs mean call rates
+  # mean_cc_rates <- mean_sn_rates <- rep(NA, length(dyad_dist_change_bins)-1)
+  # for(i in 1:(length(dyad_dist_change_bins)-1)){
+  #   idxs <- which(mean_dyad_dist_change >= dyad_dist_change_bins[i] & mean_dyad_dist_change < dyad_dist_change_bins[i+1])
+  #   mean_cc_rates[i] <- mean(cc_callrates_zscore[idxs], na.rm=T)
+  #   mean_sn_rates[i] <- mean(sn_callrates_zscore[idxs], na.rm=T)
+  # }
+  # 
+  # #make plot
+  # mids <- (dyad_dist_change_bins[1:(length(dyad_dist_change_bins)-1)] + dyad_dist_change_bins[2:length(dyad_dist_change_bins)])/2
+  # plot(mids, mean_cc_rates, pch = 19, xlab = 'Mean dyad dist change (m)', ylab = 'Mean CC rate z-score', log = 'x')
+  # plot(mids, mean_sn_rates, pch = 19, xlab = 'Mean dyad dist change (m)', ylab = 'Mean SN rate z-score', log = 'x')
+  # 
+  # #PLOT 5-6: Neighborhood change vs mean call rates
+  # mean_cc_rates <- mean_sn_rates <- rep(NA, length(neighbor_change_bins)-1)
+  # for(i in 1:(length(neighbor_change_bins)-1)){
+  #   idxs <- which(neighbor_change >= neighbor_change_bins[i] & neighbor_change < neighbor_change_bins[i+1])
+  #   mean_cc_rates[i] <- mean(cc_callrates_zscore[idxs], na.rm=T)
+  #   mean_sn_rates[i] <- mean(sn_callrates_zscore[idxs], na.rm=T)
+  # }
+  # 
+  # #make plot
+  # mids <- (neighbor_change_bins[1:(length(neighbor_change_bins)-1)] + neighbor_change_bins[2:length(neighbor_change_bins)])/2
+  # plot(mids, mean_cc_rates, pch = 19, xlab = 'Neighbor change', ylab = 'Mean CC rate - zscore')
+  # plot(mids, mean_sn_rates, pch = 19, xlab = 'Neighbor change', ylab = 'Mean SN rate - zscore')
+  # 
   #PLOT 7-8: N neighbors vs mean call rates
   mean_cc_rates <- mean_sn_rates <- rep(NA, length(n_neighbor_bins)-1)
   for(i in 1:(length(n_neighbor_bins)-1)){
@@ -299,14 +361,27 @@ for(g in 1:length(groupyears)){
     mean_cc_rates[i] <- mean(cc_callrates_zscore[idxs], na.rm=T)
     mean_sn_rates[i] <- mean(sn_callrates_zscore[idxs], na.rm=T)
   }
-  
+
   #make plot
   mids <- (n_neighbor_bins[1:(length(n_neighbor_bins)-1)] + n_neighbor_bins[2:length(n_neighbor_bins)])/2
   plot(mids, mean_cc_rates, pch = 19, xlab = '# neighbors', ylab = 'Mean CC rate - zscore')
   plot(mids, mean_sn_rates, pch = 19, xlab = '# neighbors', ylab = 'Mean SN rate - zscore')
+
+  #PLOTS 9-10: surroundedness vs call rate
+  mean_cc_rates <- mean_sn_rates <- rep(NA, length(surroundedness_bins)-1)
+  for(i in 1:(length(surroundedness_bins)-1)){
+    idxs <- which(surroundedness >= surroundedness_bins[i] & surroundedness < surroundedness_bins[i+1])
+    mean_cc_rates[i] <- mean(cc_callrates_zscore[idxs], na.rm=T)
+    mean_sn_rates[i] <- mean(sn_callrates_zscore[idxs], na.rm=T)
+  }
   
-  dev.copy2pdf(file = paste0(outdir, 'callrate_vs_speed_and_neighbors_zscore',groupyear,'.pdf'))
-  dev.off()
+  #make plot
+  mids <- (surroundedness_bins[1:(length(surroundedness_bins)-1)] + surroundedness_bins[2:length(surroundedness_bins)])/2
+  plot(mids, mean_cc_rates, pch = 19, xlab = 'Surroundedness', ylab = 'Mean CC rate zscore')
+  plot(mids, mean_sn_rates, pch = 19, xlab = 'Surroundedness', ylab = 'Mean SN rate zscore')
+  
+  #dev.copy2pdf(file = paste0(outdir, 'callrate_vs_speed_and_neighbors_zscore',groupyear,'.pdf'))
+  #dev.off()
   
   #---------------3d plots---------------
   #3D plot - call rate vs speed and mean dyadic distance change
@@ -440,6 +515,7 @@ for(g in 1:length(groupyears)){
   
 }
 
-#Look at speed results when at least half group giving close calls (filter out non-foraging periods)
+#Look at speed results when at least half group giving close calls (filter out non-foraging periods) - apply to all analyses (50% of group within past 60 sec, no alarms in past 60 sec)
 #Call rate vs. number of neighbors and surroundedness (circular variance)
 #Call rate vs number of neighbors and their call rates (?)
+#Call-response-response triplets: AAA AAB ABA ABC ABB
