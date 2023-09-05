@@ -78,13 +78,11 @@ if(testflag){
 # diff.inds.only: boolean variable determining whether we should remove same-individual pairs of calls (T) or not (F)
 #OUTPUTS:
 # out: a list containing
-#   out$dist.window: distance window (same as input)
-#   out$time.window: time window (same as input)
-#   out$num: matrix of the numerators of K for each distance (row) / time window (column), i.e. the total number of calls within a distance window dist.window and a time window time.window
-#   out$denom: matrix of the denominators of K, i.e. the total number of calls within a time window time.window
-#   out$K: matrix of the modified Knox K metric (num / denom)
-#NOTE: In the calculations below, we actually don't use the raw K metric but rather take partial (numerical) derivatives using
-#the num and denom outputs
+#   out$dist.windows: distance window (same as input)
+#   out$time.windows: time window (same as input)
+#   out$K: matrix of the modified Knox K metric (see explanation above)
+#   out$npairs.dist.time: matrix of number of pairs of calls within a given distance range and time range (numerator of K)
+#   out$tot.pairs: matrix of total pairs of calls in all distance and time ranges (denominator of K)
 compute_Knox_indexes <- function(calls.include, allX, allY, dist.windows, time.windows, diff.inds.only = F){
   
   #get x and y positions at the times of calls
@@ -209,7 +207,7 @@ for(sess.idx in 1:length(sessions)){
   n.times <- ncol(allX)
   
   #get beginning and end times of tracking periods (both GPS and audio) as well as which individuals have both GPS and audio
-  #Note: This will not account for instances where there are gaps in labeling (but this should be rare, unlikely to systematically affect this analysis as it will be same in real vs randomized data)
+  #Note: This will not account for instances where there are gaps in audio labeling (but this should be rare, unlikely to systematically affect this analysis as it will be same in real vs randomized data)
   labeled.intervals <- data.frame(date = dates, 
                                audio.start = rep(NA,length(dates)),
                                audio.end = rep(NA, length(dates)))
