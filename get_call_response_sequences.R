@@ -66,11 +66,11 @@ savedir <- '~/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/'
 
 #list of call types to include in the set of calls by the initial caller (which determines the 0 point of the correlogram)
 #Options are either 'cc' (for close calls) or 'sn' (for short note calls)
-caller.calltype <- 'sn' 
+caller.calltype <- 'cc' 
 
 #list of call types of include in the set of calls by the responder (determines the curve in the correlogram)
 #Options are either 'cc' (for close calls) or 'sn' (for short note calls)
-responder.calltype <- 'sn'
+responder.calltype <- 'cc'
 
 #----------YOU SHOULD GENERALLY NOT NEED TO MODIFY THESE PARAMETERS--------------
 #whether to save output
@@ -79,13 +79,13 @@ save.output <- T
 #bandwidth of smoothing kernel (default 0.1)
 bw <- .1
 
-#maximum time lag to consider (time since another individual called)
+#maximum time lag to consider (time since another individual called) in sec
 max.lag <- 3
 
-#time step to use for the sequence of times
+#time step to use for the sequence of times in sec
 step <- .02
 
-#what to trigger on (call begin or call end)
+#what to trigger on (call begin or call end), i.e. what to specify as the zero point
 trigger.on <- 'begin'
 
 #list of group years
@@ -93,7 +93,8 @@ groupyears <- c('HM2017', 'HM2019', 'L2019')
 
 #file names for the audio file and the gps files for each session
 gps.files <- paste(groupyears, 'COORDINATES_all_sessions.RData', sep = '_')
-audio.file <- 'all_calls_sync_resolved_with_oor_2022-12-04.csv' 
+#audio.file <- 'all_calls_sync_resolved_with_oor_2022-12-04.csv' 
+audio.file <- 'all_calls_sync_resolved_2023-03-23_cc_filt.csv'
 
 # ----- SETUP -------
 #store parameters in a named list
@@ -220,9 +221,11 @@ for(g in 1:length(groupyears)){
     #get calls on that date
     calls.date <-  calls.all[which((calls.all$date == date) & (calls.all$ind %in% inds)),]
     
-    #make a simple table that just contains the cc's from each individual at that date and their t0 and tf times (as numeric)
-    calls.use.date <- calls.date[which((calls.date$isCallerCallType | calls.date$isResponderCallType) & as.character(calls.date$pred_focalType) == 'F'),]
-
+    #make a simple table that just contains the calls of the right type from each individual at that date and their t0 and tf times (as numeric)
+    #NOTE: Ask Vlad, why is pred_focalType column now all FALSE? Modify code?
+    #calls.use.date <- calls.date[which((calls.date$isCallerCallType | calls.date$isResponderCallType) & as.character(calls.date$pred_focalType) == 'F'),]
+    calls.use.date <- calls.date[which(calls.date$isCallerCallType | calls.date$isResponderCallType),]
+    
     #skip if there were no calls on that date, otherwise...
     if(nrow(calls.use.date)>0){
       
