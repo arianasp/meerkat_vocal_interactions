@@ -288,7 +288,7 @@ if(make_plots){
   
   #------INITIALIZE PLOTTING-----
   quartz(height = 7, width = 7)
-  par(mfrow = c(2,2))
+  par(mfcol = c(2,2))
   par(cex.lab=1.5)
   par(mar = c(5,5,1,1))
   
