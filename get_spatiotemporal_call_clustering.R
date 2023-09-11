@@ -35,10 +35,10 @@ audiodir <- '~/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/paper_d
 gpsdir <- '~/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/paper_data_to_submit/' 
 
 #directory where you would like to store the processed data (can be the same directory too if you like)
-savedir <- '~/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/'
+savedir <- '~/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/precomputed/'
 
 #call type
-callType <- 'cc'
+callType <- 'sn'
 
 #test on a smaller number of bins and with only one null model?
 testflag <- F
@@ -169,7 +169,7 @@ simplifyNames <- function(pat,reverse=F,items=ls(name=.GlobalEnv, pattern=pat)){
 print('Running call clustering analysis')
 
 #load audio data
-calls.allsessions <- read.csv(paste0(audiodir,'all_calls_sync_resolved_with_oor_2022-12-04.csv' ), header=T, stringsAsFactors=F)
+calls.allsessions <- read.csv(paste0(audiodir,'all_calls_sync_resolved_2023-09-10_cc_sn_filt_with_oor.csv' ), header=T, stringsAsFactors=F)
 
 timestamp()
 for(sess.idx in 1:length(sessions)){
@@ -276,7 +276,7 @@ for(sess.idx in 1:length(sessions)){
     dates <- dates[-empty.intervals]
   }
   
-  #now also remove the individuals that don't have complete gps data (missing less than a minute) during the relevant time interval
+  #now also remove the individuals that don't have complete gps data (missing more than a minute) during the relevant time interval
   for(d in 1:nrow(labeled.intervals)){
     for(i in 1:n.inds){
       if(sum(is.na(allX[i,labeled.intervals$audio.start[d]:labeled.intervals$audio.end[d]])) > 60){
@@ -295,11 +295,11 @@ for(sess.idx in 1:length(sessions)){
     labeled.intervals <- labeled.intervals[-not.enough.inds,]
   }
   
-  #filter to only focal calls
-  calls <- calls.all[which(calls.all$focalType == 'F'),]
+  #filter to only focal calls - not needed with new pre-filtered data
+  #calls.all <- calls.all[which(calls.all$focalType == 'F'),]
   
   #filter to only calls you want to analyze - currently close calls (cc) including cc hybrids or short notes (sn)
-  calls.include <- calls[grep(callType,calls$callType),]
+  calls.include <- calls.all[grep(callType,calls.all$callType),]
   
   #filter to only include calls within the recording intervals specified by date.intervals
   include.idxs <- c()

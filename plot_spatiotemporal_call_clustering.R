@@ -10,7 +10,7 @@ callType <- 'cc'
 
 #----------YOU SHOULD GENERALLY NOT NEED TO MODIFY THESE PARAMETERS--------------
 sessions <- c('HM2017','HM2019','L2019')
-plot_signif_stars <- T
+plot_signif_stars <- F
 
 #--------LIBRARIES------
 library(gplots)
@@ -24,12 +24,12 @@ if(.Platform$OS.type=="windows") {
 }
 
 #--------------PLOTTING---------
+setwd(savedir)
 
+#Plot by group
 for(sess.idx in 1:length(sessions)){
   
   session <- sessions[sess.idx]
-  
-  setwd(savedir)
   
   #load data (if testflag == T, load test data, but ignore the results!)
   if(testflag){
@@ -84,3 +84,49 @@ for(sess.idx in 1:length(sessions)){
   axis(side = 1, at = seq(0,1,length.out = length(dist.windows)), labels = dist.windows)
   axis(side = 2, at = seq(0,1,length.out = length(time.windows)), labels = time.windows)
 }
+
+#PLOT: Aggregate across groups
+quartz(height = 8, width = 8)
+par(mfrow=c(1,1), cex.main = 2, cex.lab=2, mar = c(5,5,1,1), cex.axis = 1.5)
+
+pairs.agg.data <- matrix(0, nrow = length(dist.windows)-1, ncol = length(time.windows)-1)
+pairs.agg.rand <- array(0, dim = c(length(dist.windows)-1, ncol = length(time.windows)-1, n.rands))
+tot.pairs.agg.data <- 0
+tot.pairs.agg.rand <- rep(0, n.rands)
+for(sess.idx in 1:length(sessions)){
+  
+  session <- sessions[sess.idx]
+  
+  #load data (if testflag == T, load test data, but ignore the results!)
+  if(testflag){
+    load(paste0(savedir,callType, '_clustering_',session,'_test.RData'))
+  } else{
+    load(paste0(savedir,callType, '_clustering_',session,'.RData'))
+  }
+  
+  pairs.agg.data <- pairs.agg.data + K.data*tot.pairs.data
+  for(n in 1:n.rands){
+    pairs.agg.rand[,,n] <- pairs.agg.rand[,,n] + K.rand[,,n]*tot.pairs.rand[n]
+  }
+  tot.pairs.agg.data <- tot.pairs.agg.data + tot.pairs.data
+  tot.pairs.agg.rand <- tot.pairs.agg.rand + tot.pairs.rand
+  
+}  
+
+K.data <- pairs.agg.data / tot.pairs.agg.data
+K.rand <- array(NA, dim = dim(pairs.agg.rand))
+for(n in 1:n.rands){
+  K.rand[,,i] <- pairs.agg.rand[,,n] / tot.pairs.agg.rand[n]
+}
+
+K.rand.mean <- apply(K.rand, c(1,2), mean, na.rm=T)
+
+colramp <- colorRampPalette(c('darkorchid4','white','chocolate1'))
+cols <- colramp(256)
+
+xaxis <- seq(-1/(length(dist.windows)-1)/2, 1 + 1/(length(dist.windows)-1)/2, length.out = length(dist.windows))
+yaxis <- seq(-1/(length(time.windows)-1)/2, 1 + 1/(length(time.windows)-1)/2, length.out = length(time.windows))
+
+image.plot(log(K.data / K.rand.mean), col = cols, zlim = c(-2,2),xlab = 'Distance (m)', ylab = 'Time (sec)', xaxt = 'n', yaxt = 'n', cex.lab = 1.5)
+axis(side = 1, at = xaxis, labels = dist.windows, las = 1, cex = 1.5)
+axis(side = 2, at = yaxis, labels = time.windows, las = 1, cex = 1.5)

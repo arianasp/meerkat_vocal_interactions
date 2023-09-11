@@ -66,11 +66,11 @@ savedir <- '~/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/'
 
 #list of call types to include in the set of calls by the initial caller (which determines the 0 point of the correlogram)
 #Options are either 'cc' (for close calls) or 'sn' (for short note calls)
-caller.calltype <- 'sn' 
+caller.calltype <- 'cc' 
 
 #list of call types of include in the set of calls by the responder (determines the curve in the correlogram)
 #Options are either 'cc' (for close calls) or 'sn' (for short note calls)
-responder.calltype <- 'sn'
+responder.calltype <- 'cc'
 
 #----------YOU SHOULD GENERALLY NOT NEED TO MODIFY THESE PARAMETERS--------------
 #whether to save output
@@ -95,7 +95,7 @@ groupyears <- c('HM2017', 'HM2019', 'L2019')
 gps.files <- paste(groupyears, 'COORDINATES_all_sessions.RData', sep = '_')
 #audio.file <- 'all_calls_sync_resolved_with_oor_2022-12-04.csv' 
 #audio.file <- 'all_calls_sync_resolved_2023-03-23_cc_filt.csv'
-audio.file <- 'all_calls_sync_resolved_2023-03-23_cc_sn_filt.csv'
+audio.file <- 'all_calls_sync_resolved_2023-09-10_cc_sn_filt_with_oor.csv'
 
 # ----- SETUP -------
 #store parameters in a named list
