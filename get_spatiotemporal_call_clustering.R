@@ -35,7 +35,7 @@ audiodir <- '~/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/paper_d
 gpsdir <- '~/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/paper_data_to_submit/' 
 
 #directory where you would like to store the processed data (can be the same directory too if you like)
-savedir <- '~/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/precomputed/'
+savedir <- '~/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/paper_data_to_submit/precomputed/'
 
 #call type
 callType <- 'sn'
@@ -49,7 +49,7 @@ testflag <- F
 time.windows <- c(0,1,2,5,10,20,30,60,120,300,600,1800,3600)
 
 #distance windows (m)
-dist.windows <- c(0,1,2,5,10,20,30,50,100,200)
+dist.windows <- c(0,2,5,10,25,50,100,200)
 
 #number of randomizations
 n.rands <- 100

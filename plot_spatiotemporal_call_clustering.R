@@ -6,7 +6,7 @@
 
 savedir <- '~/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/paper_data_to_submit/precomputed/'
 testflag <- F
-callType <- 'cc'
+callType <- 'sn'
 
 #----------YOU SHOULD GENERALLY NOT NEED TO MODIFY THESE PARAMETERS--------------
 sessions <- c('HM2017','HM2019','L2019')
@@ -87,7 +87,7 @@ for(sess.idx in 1:length(sessions)){
 
 #PLOT: Aggregate across groups
 quartz(height = 8, width = 8)
-par(mfrow=c(1,1), cex.main = 2, cex.lab=2, mar = c(5,5,1,1), cex.axis = 1.5)
+par(mfrow=c(1,1), cex.main = 2, cex.lab=2, mar = c(8,6,4,1), cex.axis = 1.5)
 
 pairs.agg.data <- matrix(0, nrow = length(dist.windows)-1, ncol = length(time.windows)-1)
 pairs.agg.rand <- array(0, dim = c(length(dist.windows)-1, ncol = length(time.windows)-1, n.rands))
@@ -121,12 +121,28 @@ for(n in 1:n.rands){
 
 K.rand.mean <- apply(K.rand, c(1,2), mean, na.rm=T)
 
-colramp <- colorRampPalette(c('darkorchid4','white','chocolate1'))
+colramp <- colorRampPalette(c('darkorchid4','white','darkgoldenrod1'))
 cols <- colramp(256)
 
 xaxis <- seq(-1/(length(dist.windows)-1)/2, 1 + 1/(length(dist.windows)-1)/2, length.out = length(dist.windows))
 yaxis <- seq(-1/(length(time.windows)-1)/2, 1 + 1/(length(time.windows)-1)/2, length.out = length(time.windows))
 
-image.plot(log(K.data / K.rand.mean), col = cols, zlim = c(-2,2),xlab = 'Distance (m)', ylab = 'Time (sec)', xaxt = 'n', yaxt = 'n', cex.lab = 1.5)
+mat_to_plot <- log(K.data / K.rand.mean)
+mat_to_plot[is.infinite(mat_to_plot)] <- NA
+scale <- max(abs(mat_to_plot),na.rm=T)
+
+lab.main <- ''
+col.main <- 'black'
+if(callType=='cc'){
+  lab.main <- 'Close calls'
+  col.main <- 'red'
+}
+if(callType=='sn'){
+  lab.main <- 'Short note calls'
+  col.main <- 'blue'
+}
+
+
+image.plot(mat_to_plot, col = cols, zlim = c(-scale,scale),xlab = 'Distance (m)', ylab = 'Time (sec)', xaxt = 'n', yaxt = 'n', cex.lab = 1.5, main = lab.main, col.main = col.main)
 axis(side = 1, at = xaxis, labels = dist.windows, las = 1, cex = 1.5)
 axis(side = 2, at = yaxis, labels = time.windows, las = 1, cex = 1.5)

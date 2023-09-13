@@ -7,7 +7,7 @@
 #-------YOU WILL NEED TO MODIFY THESE PARAMETERS TO RUN ON YOUR MACHINE-----------
 
 #file to use for the plots (outputted from get_call_response_sequences)
-filename <- '~/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/callresp_cc_cc_bw0.1.RData'
+filename <- '~/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/callresp_sn_sn_bw0.1.RData'
 
 #data directory where ind info (and gps data) is stored 
 datadir <- '~/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/paper_data_to_submit/'
@@ -25,9 +25,6 @@ extra.plots <- F
 #caller age classes
 adult_classes <- c('DominantF','DominantM','Yearling','Sub-Adult','Adult')
 juv_classes <- c('Juvenile')
-
-#------------LIBRARIES-------------
-library(viridis)
 
 #-----------GRAPHICS--------
 #make compatible with windows OS
@@ -159,11 +156,22 @@ quartz(height = 6, width = 12)
 par(mfrow=c(1,length(dist.bins)-1))
 par(mar=c(6,6,3,1))
 ymax <- max(mean.call.rates)*1.3
-cols <- viridis(nrow(mean.call.rates))
+if(callresp$callType[1]=='cc'){
+  col_pal <- colorRampPalette(c('red','white'))
+} else{
+  col_pal <- colorRampPalette(c('blue','white'))
+}
+cols <- col_pal(nrow(mean.call.rates)+2)
 for(i in 1:nrow(mean.call.rates)){
   
+  if(i == 1){
+    ylab = 'Call rate'
+  } else{
+    ylab = ''
+  }
+  
   #set up plot for a given distance range
-  plot(NULL, xlim=c(-2,2),ylim=c(0,ymax),xlab='Time lag (sec)', ylab = 'Call rate', cex.axis=1.5,cex.lab=1.5, main = paste(dist.bins[i],'-', dist.bins[i+1],'m',sep=' '))
+  plot(NULL, xlim=c(-2,2),ylim=c(0,ymax),xlab='Time lag (sec)', ylab = ylab, cex.axis=2,cex.lab=2, main = paste(dist.bins[i],'-', dist.bins[i+1],'m',sep=' '))
   abline(v = seq(-3,3,.1), col = 'gray', lwd = 0.5)
   abline(v=0, lty=1, col = 'black')
   
@@ -210,19 +218,19 @@ par(mfrow=c(1,2))
 par(mar=c(8,6,3,1))
 ymax_adult <- max(c(mean.call.rates.adult.adult, mean.call.rates.juv.adult))*1.1
 ymax_juv <- max(c(mean.call.rates.juv.juv, mean.call.rates.adult.juv))*1.1
-plot(NULL, xlim=c(-2,2),ylim=c(0,ymax_adult),xlab='Time lag (sec)', ylab = 'Call rate', cex.axis=1.5,cex.lab=1.5, main = 'All distances')
+plot(NULL, xlim=c(-2,2),ylim=c(0,ymax_adult),xlab='Time lag (sec)', ylab = 'Call rate', cex.axis=2,cex.lab=2, main = 'All distances')
 abline(v = seq(-3,3,.1), col = 'gray', lwd = 0.5)
 abline(v=0, lty=1, col = 'black')
-lines(tseq, mean.call.rates.adult.adult, col = 'red', lwd = 3, type = 'l', lty = 1)
-lines(tseq, mean.call.rates.juv.adult, col = 'red', lwd = 3, type = 'l', lty = 3)
-legend('bottomleft', col = c('red','red'), lty = c(1, 3), lwd = 3, legend = c('Adult response to Adult', 'Adult response to Juvenile'), bg = 'white')
+lines(tseq, mean.call.rates.adult.adult, col = cols[1], lwd = 3, type = 'l', lty = 1)
+lines(tseq, mean.call.rates.juv.adult, col = cols[1], lwd = 3, type = 'l', lty = 3)
+#legend('bottomleft', col = c('red','red'), lty = c(1, 3), lwd = 3, legend = c('Adult response to Adult', 'Adult response to Juvenile'), bg = 'white')
 
-plot(NULL, xlim=c(-2,2),ylim=c(0,ymax_juv),xlab='Time lag (sec)', ylab = 'Call rate', cex.axis=1.5,cex.lab=1.5, main = 'All distances')
+plot(NULL, xlim=c(-2,2),ylim=c(0,ymax_juv),xlab='Time lag (sec)', ylab = 'Call rate', cex.axis=2,cex.lab=2, main = 'All distances')
 abline(v = seq(-3,3,.1), col = 'gray', lwd = 0.5)
 abline(v=0, lty=1, col = 'black')
-lines(tseq, mean.call.rates.juv.juv, col = 'black', lwd = 3, type = 'l', lty = 3)
-lines(tseq, mean.call.rates.adult.juv, col = 'black', lwd = 3, type = 'l', lty = 1)
-legend('bottomleft',col = c('black','black'), lty = c(1, 3), lwd = 3, legend = c('Juvenile response to Adult','Juvenile response to Juvenile'), bg = 'white')
+lines(tseq, mean.call.rates.juv.juv, col = cols[1], lwd = 3, type = 'l', lty = 3)
+lines(tseq, mean.call.rates.adult.juv, col = cols[1], lwd = 3, type = 'l', lty = 1)
+#legend('bottomleft',col = c('black','black'), lty = c(1, 3), lwd = 3, legend = c('Juvenile response to Adult','Juvenile response to Juvenile'), bg = 'white')
   
 # ----- EXTRA PLOTS -----  
 #some extra plots that are not included in the paper 
