@@ -286,12 +286,6 @@ if(make_plots){
   #get neighbor bins (0, 1, 2, 3, >=4)
   n_neighbor_bins <- c(seq(0,4,1), max(nbrs_all,na.rm=T))
   
-  #------INITIALIZE PLOTTING-----
-  quartz(height = 7, width = 7)
-  par(mfcol = c(2,2))
-  par(cex.lab=1.5)
-  par(mar = c(5,5,1,1))
-  
   #-----COLLECT DATA FOR PLOTTING---
   
   #initialize empty matrices for individual-level (row = individual, col = speed or nbr bin)
@@ -334,8 +328,15 @@ if(make_plots){
   }
   
   #make plots for call rate vs speed
+  #------INITIALIZE PLOTTING-----
+  quartz(height = 7, width = 7)
+  par(mfcol = c(2,2))
+  par(cex.lab=1.5)
+  par(mar = c(5,5,1,1))
+  
+  #-----PLOTTING------
   #cc plot
-  plot(NULL, xlim = c(min(mids), max(mids)), ylim = c(-.5,.5), log = 'x', xlab = 'Speed (m / min)', ylab = 'Call rate (z-score)')
+  plot(NULL, xlim = c(min(mids), max(mids)), ylim = c(-.5,.5), log = 'x', xlab = 'Speed (m / min)', ylab = 'Call rate (z-score)', xaxt='n')
   for(i in 1:n_inds_tot){
     lines(mids, cc_vs_speed_ind[i,], col = '#FF000044')
   }
@@ -343,9 +344,11 @@ if(make_plots){
   points(mids, cc_vs_speed_all, cex = 1.5, pch = 19, col = 'red')
   legend('topleft','Close calls', bty='n', cex = 1.2, text.col = 'red')
   abline(h=0,lty=2)
+  axis(side = 1, at = c(1,10,100), labels = c(1,10,100),tck=-.04)
+  axis(side = 1, at = c(2,3,4,5,6,7,8,9,20,30,40,50,60,70,80,90,200),labels = NA, tck=-.02)
   
   #sn plot
-  plot(NULL, xlim = c(min(mids), max(mids)), ylim = c(-.5,.5), log = 'x', xlab = 'Speed (m / min)', ylab = 'Call rate (z-score)')
+  plot(NULL, xlim = c(min(mids), max(mids)), ylim = c(-.5,.5), log = 'x', xlab = 'Speed (m / min)', ylab = 'Call rate (z-score)', xaxt='n')
   for(i in 1:n_inds_tot){
     lines(mids, sn_vs_speed_ind[i,], col = '#0000FF44')
   }
@@ -353,6 +356,9 @@ if(make_plots){
   points(mids, sn_vs_speed_all, cex = 1.5, pch = 19, col = 'blue')
   legend('topleft','Short note calls', bty='n', cex = 1.2, text.col = 'blue')
   abline(h=0,lty=2)
+  axis(side = 1, at = c(1,10,100), labels = c(1,10,100),tck=-.04)
+  axis(side = 1, at = c(2,3,4,5,6,7,8,9,20,30,40,50,60,70,80,90,200),labels = NA, tck=-.02)
+  
   
   #-----Call rate vs n nbrs plots----
   #same as above, but for a different independent variable (number of neighbors)
