@@ -19,7 +19,7 @@ The figures produced by running the code here include:
 
 * Mean call rate vs speed and number of nearby neighbors (Figure 6)
 
-## Bigrams, caller exchange, and call rate vs speed and nearby neighbors (Figures 1, 2, 3, and 6)
+## Bigrams and caller exchange (Figures 1, 2, and 3)
 
 This section explains how to run the analyses to generate Figures 1 - 3 in the paper.
 
@@ -158,5 +158,32 @@ There are two analyses: an analysis of call and response patterns (as a function
 
 * To run this script, you will need to specify the path to your output folder (from Part 1), and indciate whether you ran the prior sciprt in test mode (`testflag <- T`) or not (`testflag <- F`). You will also need to specify which call type you would like to plot.
 
-* The places where you need to modify are clearly marked at the top of the script with the comment `#YOU WILL NEED TO MODIFY THESE PARAMETERS TO RUN ON YOUR MACHINE`. 
+* The places where you need to modify are clearly marked at the top of the script with the comment `#YOU WILL NEED TO MODIFY THESE PARAMETERS TO RUN ON YOUR MACHINE`.
+
+## Call rate vs speed and number of nearby neighbors (Figure 6)
+
+This script produces Figure 6 from precomputed metrics data. You can also compute the metrics from the raw data by setting the flag: 
+`compute <- T` at the top.
+
+### Requirements - libraries
+
+See the libraries required at the top of the script.
+
+### Requirements - data
+
+The code requires the following data files to run:
+
+* `metrics_data.RData`
+
+### Scripts
+
+The scripts to produce the first 3 figures in the manuscript are the following:
+
+* `call_rate_vs_speed.R`
+
+### How to run
+
+Run the script to produce the plots. You will need to edit the input and output directories to point to the data file and the output folder where you want the plots to be saved.
+
+
 
