@@ -1,19 +1,59 @@
 # Meerkat vocal interactions code
 
 This repository contains the code to carry out analyses of meerkat vocal interactions,
-described in the paper **"Mapping vocal interactions in space and time differentiates call-and-response vs. broadcast signalling in meerkat groups"** (working title).
+described in the paper **"Mapping vocal interactions in space and time differentiates signal broadcast vs. signal exchange in meerkat groups"**.
 
 The figures produced by running the code here include:
 
-* Call response dynamics curves for close calls and short notes as a function of distance between caller and responder
+* Call category bigrams (Figure 1)
 
-* Call response dynamics curves for close calls and short notes as a function of age
+* Self-reply vs caller exchange (Figure 2)
 
-* Clustering of close calls and short notes over different spatial and temporal scales (line plots)
+* Tree plot (Figure 3)
 
-* Clustering of close calls and short notes over different spatial and temporal scales (heat map plots)
+* Call response dynamics curves for close calls and short notes as a function of distance between caller and responder (Figure 4a)
 
-## Requirements - libraries
+* Call response dynamics curves for close calls and short notes as a function of age (Figure 4b)
+
+* Clustering of close calls and short notes over different spatial and temporal scales (Figure 5)
+
+## Bigrams and caller exchange (Figures 1 - 3)
+
+This section explains how to run the analyses to generate Figures 1 - 3 in the paper.
+
+### Requirements - libraries
+
+See the libraries required at the top of each script.
+
+### Requirements - data
+
+The code requires the following data files to run:
+
+* `03_tree_data.RData`
+
+* `04_meerkat_bigrams.RData`
+
+* `05_self_nonself_reply_proportions.RData`
+
+* ## Scripts
+
+The scripts to produce the first 3 figures in the manuscript are the following:
+
+* `03_min_tree_script.R`: produces Figure 3
+
+* `04_meerkat_bigrams.R`: produces Figure 1
+
+* `05_self_nonself_reply_proportions.R`: produces Figure 2
+
+### How to run
+
+Each script is associated with a data file of the same name. Run the scripts to produce the plots.
+
+## Call-response and call clustering (Figures 4 - 5)
+
+This section explains how to run the call-response dynamics analysis and the call clustering analysis to generate Figures 4 and 5 in the paper.
+
+### Requirements - libraries
 
 The code was developed and tested in R version 4.1.2 on Mac OS 13.2.1, Platform x86_64-appledarwin17.0 (64-bit). 
 Other versions of R and operating systems are likely to work as well.
@@ -30,11 +70,11 @@ The code requires the following R packages to be installed via `install.packages
 * `fields`: used for plotting
 
 
-## Requirements - data
+### Requirements - data
 
 The code requires the following raw data files to run:
 
-* `all_calls_sync_resolved_with_oor_2022-12-04.csv`: contains a table of all labeled calls
+* `all_calls_sync_resolved_2023-09-10_cc_sn_filt_with_oor.csv`: contains a table of all labeled calls
 
 * `HM2017_COORDINATES_all_sessions.RData`: contains GPS data (UTM) for the group HM2017 as well as timestamps
 
@@ -61,9 +101,9 @@ The objects contained in the DATAPRESENCE files are:
 * `{groupyear}_gpsOn`: same as above, but for GPS data. GPS data may become unavailable if a focal-followed meerkat went out of range of the observer, as described above.
 
 
-## Scripts
+### Scripts
 
-The repository contains the following scripts:
+The part contains the following scripts:
 
 * `get_call_response_sequences.R`: code for generating call-response sequences that are later summarized via plots
 
@@ -73,12 +113,12 @@ The repository contains the following scripts:
 
 * `plot_spatiotemporal_call_clustering.R`: code for plotting spatiotemporal clustering metric results
 
-## How to run
+### How to run
 
 Once you have installed the required libraries and ensured that you have the data, you are ready to run the analyses.
 There are two analyses: an analysis of call and response patterns (as a function of space, time, and individual age/sex/dominance class) and an analysis of the spatial and temporal clustering of calls at the group scale.
 
-### For the call-response curve analysis:
+#### For the call-response curve analysis:
 
 **Step 1: Generate the call-response sequences that will be used in the plots and save.** This can be generated via the script `get_call_response_sequences.R`. 
 
@@ -98,7 +138,7 @@ There are two analyses: an analysis of call and response patterns (as a function
 
 * The places where you need to modify are clearly marked at the top of the script with the comment `#YOU WILL NEED TO MODIFY THESE PARAMETERS TO RUN ON YOUR MACHINE`. 
 
-### For the spatiotemporal call clustering analysis:
+#### For the spatiotemporal call clustering analysis:
 
 **Step 1: Generate the spatiotemporal call clustering data that will be used in the plots and save.** This can be generated via the script `get_spatiotemporal_call_clustering.R`. 
 
