@@ -24,7 +24,7 @@ groupyears <- c('HM2017','HM2019','L2019')
 dt <- 10 
 
 #input and output directories
-indir <- '/Users/Ari/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/paper_data_to_submit/'
+indir <- '/Users/Ari/Dropbox/meerkats/processed_data/paper_data_to_submit/'
 outdir <- '/Users/Ari/Dropbox/meerkats/meerkats_shared/ari/vocal_interactions/plots_2023-08-30_afterccfilt/'
 
 #name of file (csv) where call data is stored (inside indir)
