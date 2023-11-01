@@ -17,7 +17,9 @@ The figures produced by running the code here include:
 
 * Clustering of close calls and short notes over different spatial and temporal scales (Figure 5)
 
-## Bigrams and caller exchange (Figures 1 - 3)
+* Mean call rate vs speed and number of nearby neighbors (Figure 6)
+
+## Bigrams, caller exchange, and call rate vs speed and nearby neighbors (Figures 1, 2, 3, and 6)
 
 This section explains how to run the analyses to generate Figures 1 - 3 in the paper.
 
@@ -35,7 +37,7 @@ The code requires the following data files to run:
 
 * `05_self_nonself_reply_proportions.RData`
 
-* ## Scripts
+### Scripts
 
 The scripts to produce the first 3 figures in the manuscript are the following:
 
