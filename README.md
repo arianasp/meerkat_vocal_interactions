@@ -35,7 +35,7 @@ The code requires the following data files to run:
 
 * `05_self_nonself_reply_proportions.RData`
 
-* ## Scripts
+### Scripts
 
 The scripts to produce the first 3 figures in the manuscript are the following:
 
