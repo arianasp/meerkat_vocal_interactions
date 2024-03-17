@@ -51,18 +51,24 @@
 #set to T for testing mode, set to F to run code on all data (takes several hours)
 #Note that if you run this code in test mode, the output will be very noisy because only a few calls are used, therefore the results are NOT expected to match those in the paper
 testflag <- F
+anon <- T
 
 #directory where gps data is stored for the project
-gps.datadir <- '~/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/paper_data_to_submit/' 
+if(anon){
+  gps.datadir <- '~/Desktop/meerkat_data_anon/'
+} else{
+  gps.datadir <- '~/Dropbox/meerkats/processed_data/vocal_interactions_paper_data_submitted/'
+}
 
 #direcotry where audio labeling data is stored for the project
-audio.datadir <- '~/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/paper_data_to_submit/' 
+if(anon){audio.datadir <- '~/Desktop/meerkat_data_anon/'}
+if(!anon){audio.datadir <- '~/Dropbox/meerkats/processed_data/vocal_interactions_paper_data_submitted/'}
 
 #directory where code is stored for this project
 codedir <- '~/Dropbox/code_ari/meerkat_vocal_interactions'
 
 #directory of where to save results (for later plotting)
-savedir <- '~/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/'
+savedir <- '~/Desktop/meerkat_data_anon/precomputed/'
 
 #list of call types to include in the set of calls by the initial caller (which determines the 0 point of the correlogram)
 #Options are either 'cc' (for close calls) or 'sn' (for short note calls)
@@ -90,12 +96,18 @@ trigger.on <- 'begin'
 
 #list of group years
 groupyears <- c('HM2017', 'HM2019', 'L2019')
+#groupyears <- c('HM2017') # for testing!
 
 #file names for the audio file and the gps files for each session
-gps.files <- paste(groupyears, 'COORDINATES_all_sessions.RData', sep = '_')
-#audio.file <- 'all_calls_sync_resolved_with_oor_2022-12-04.csv' 
-#audio.file <- 'all_calls_sync_resolved_2023-03-23_cc_filt.csv'
-audio.file <- 'all_calls_sync_resolved_2023-09-10_cc_sn_filt_with_oor.csv'
+if(anon){
+  gps.files <- paste(groupyears, 'COORDINATES_all_sessions_anon.RData', sep = '_')
+  datapresence.files <- paste(groupyears, 'DATAPRESENCE_all_sessions_anon.RData', sep = '_')
+  audio.file <- 'all_calls_sync_resolved_2023-09-10_cc_sn_filt_with_oor_anon.csv'
+} else{
+  gps.files <- paste(groupyears, 'COORDINATES_all_sessions.RData', sep = '_')
+  datapresence.files <- paste(groupyears, 'DATAPRESENCE_all_sessions.RData', sep = '_')
+  audio.file <- 'all_calls_sync_resolved_2023-09-10_cc_sn_filt_with_oor.csv'
+}
 
 # ----- SETUP -------
 #store parameters in a named list
@@ -122,7 +134,11 @@ if(save.output){
   if(testflag){
     savename <- paste0('callresp_', caller.calltype, '_', responder.calltype, '_bw', bw, '_test.RData')
   } else{
-    savename <- paste0('callresp_', caller.calltype, '_', responder.calltype, '_bw', bw, '.RData')
+    if(anon){
+      savename <- paste0('callresp_', caller.calltype, '_', responder.calltype, '_bw', bw, '_anon.RData')
+    } else{
+      savename <- paste0('callresp_', caller.calltype, '_', responder.calltype, '_bw', bw, '.RData')
+    }
   }
 }
 
@@ -144,7 +160,7 @@ calls.all <- read.csv(audio.file, header=T, sep=',', stringsAsFactors=F)
 #gpsOn and audioOn are matrices of size n_inds x n_times
 #gpsOn[i,t] is T if the gps was recording for that individual at that time index (otherwise F), similar for audioOn
 for(g in 1:length(groupyears)){
-  load(paste(groupyears[g],'DATAPRESENCE_all_sessions.RData',sep='_'))
+  load(datapresence.files[g])
 }
 
 #load gps data for all sessions

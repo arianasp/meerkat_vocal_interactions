@@ -13,7 +13,7 @@ library(viridis)
 library(lme4)
 
 #-------------FLAGS-------------
-compute <- F #whether to perform computations and save (if not, they will be loaded from a precomputed file)
+compute <- T #whether to perform computations and save (if not, they will be loaded from a precomputed file)
 make_plots <- T #whether to produce plots or not
 
 #--------------PARAMS-------------
@@ -24,11 +24,13 @@ groupyears <- c('HM2017','HM2019','L2019')
 dt <- 10 
 
 #input and output directories
-indir <- '/Users/Ari/Dropbox/meerkats/processed_data/paper_data_to_submit/'
-outdir <- '/Users/Ari/Dropbox/meerkats/meerkats_shared/ari/vocal_interactions/plots_2023-08-30_afterccfilt/'
+#indir <- '/Users/Ari/Dropbox/meerkats/processed_data/paper_data_to_submit/'
+#outdir <- '/Users/Ari/Dropbox/meerkats/processed_data/vocal_interactions_paper_data_submitted/precomputed/'
+indir <- '~/Desktop/meerkat_data_anon/'
+outdir <- '~/Desktop/meerkat_data_anon/'
 
 #name of file (csv) where call data is stored (inside indir)
-audio.file <- 'all_calls_sync_resolved_2023-03-23_cc_sn_filt.csv'
+audio.file <- 'all_calls_sync_resolved_2023-09-10_cc_sn_filt_with_oor_anon.csv'
 
 #minimum number of individuals tracked in order to include data
 min_n_tracked <- 5
@@ -74,9 +76,9 @@ if(compute){
     print(groupyear)
     
     #--------LOAD DATA----------
-    load(paste0(groupyear,'_COORDINATES_all_sessions.RData'))
+    load(paste0(groupyear,'_COORDINATES_all_sessions_anon.RData'))
     calls <- read.csv(file = paste0(audio.file), header=T, stringsAsFactors =F, sep = ',')
-    load(paste0(groupyear,'_DATAPRESENCE_all_sessions.RData'))
+    load(paste0(groupyear,'_DATAPRESENCE_all_sessions_anon.RData'))
     
     #get data associated with that groupyear - store with general names
     timeline <- eval(as.name(paste(groupyear,'timeLine', sep = '_')))

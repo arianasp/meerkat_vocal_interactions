@@ -7,10 +7,13 @@
 #-------YOU WILL NEED TO MODIFY THESE PARAMETERS TO RUN ON YOUR MACHINE-----------
 
 #file to use for the plots (outputted from get_call_response_sequences)
-filename <- '~/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/callresp_sn_sn_bw0.1.RData'
+filename <- '~/Desktop/meerkat_data_anon/precomputed/callresp_sn_sn_bw0.1_anon.RData'
+#filename <- '~/Dropbox/meerkats/processed_data/vocal_interactions_paper_data_submitted/precomputed/callresp_sn_sn_bw0.1.RData'
 
 #data directory where ind info (and gps data) is stored 
-datadir <- '~/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/paper_data_to_submit/'
+gps.datadir <- '~/Desktop/meerkat_data_anon/'
+#gps.datadir <- '~/Dropbox/meerkats/processed_data/vocal_interactions_paper_data_submitted/'
+
 
 #----------YOU SHOULD GENERALLY NOT NEED TO MODIFY THESE PARAMETERS--------------
 #Distance bins to use for plotting call-response sequences as a function of space
@@ -84,12 +87,13 @@ get_mean_call_rates <- function(callresp, callresp.seqs, gy, tseq,
 load(filename)
 
 #get individual info from all groupyears into a single table and add groupyear_ind column
-setwd(datadir)
+setwd(gps.datadir)
 groupyears <- unique(callresp$groupyear)
 ind_info <- data.frame()
 for(g in 1:length(groupyears)){
   groupyear <- groupyears[g]
-  load(paste0(groupyear,'_COORDINATES_all_sessions.RData'))
+  load(paste0(groupyear,'_COORDINATES_all_sessions_anon.RData'))
+  #load(paste0(groupyear,'_COORDINATES_all_sessions.RData'))
   ind_info_curr <- eval(as.name(paste(groupyear,'indInfo', sep = '_')))
   ind_info_curr$groupyear_ind <- paste(groupyear, ind_info_curr$code,sep= '_')
   ind_info <- rbind(ind_info, ind_info_curr)

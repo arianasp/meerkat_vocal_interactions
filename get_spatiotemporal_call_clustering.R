@@ -31,11 +31,14 @@ library(lubridate)
 
 #-------YOU WILL NEED TO MODIFY THESE PARAMETERS TO RUN ON YOUR MACHINE-----------
 #directories where data is stored (these are probably the same directory)
-audiodir <- '~/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/paper_data_to_submit/' 
-gpsdir <- '~/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/paper_data_to_submit/' 
+#audiodir <- '~/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/paper_data_to_submit/' 
+#gpsdir <- '~/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/paper_data_to_submit/' 
+audiodir <- '~/Desktop/meerkat_data_anon/'
+gpsdir <- '~/Desktop/meerkat_data_anon/'
 
 #directory where you would like to store the processed data (can be the same directory too if you like)
-savedir <- '~/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/paper_data_to_submit/precomputed/'
+#savedir <- '~/Dropbox/meerkats/processed_data_serverdownload_2023-01-09/paper_data_to_submit/precomputed/'
+savedir <- '~/Desktop/meerkat_data_anon/precomputed/'
 
 #call type
 callType <- 'sn'
@@ -169,7 +172,7 @@ simplifyNames <- function(pat,reverse=F,items=ls(name=.GlobalEnv, pattern=pat)){
 print('Running call clustering analysis')
 
 #load audio data
-calls.allsessions <- read.csv(paste0(audiodir,'all_calls_sync_resolved_2023-09-10_cc_sn_filt_with_oor.csv' ), header=T, stringsAsFactors=F)
+calls.allsessions <- read.csv(paste0(audiodir,'all_calls_sync_resolved_2023-09-10_cc_sn_filt_with_oor_anon.csv' ), header=T, stringsAsFactors=F)
 
 timestamp()
 for(sess.idx in 1:length(sessions)){
@@ -180,7 +183,7 @@ for(sess.idx in 1:length(sessions)){
   print(session)
   
   #loading spatial data and making names easier
-  longNames <- c(load(paste0(gpsdir,session,"_COORDINATES_all_sessions.RData")))
+  longNames <- c(load(paste0(gpsdir,session,"_COORDINATES_all_sessions_anon.RData")))
   shortNames <- simplifyNames(pat=paste(session,"_",sep=""))
   
   #get dates associated with that session
@@ -350,7 +353,7 @@ for(sess.idx in 1:length(sessions)){
   }
   
   #output file name
-  outfile.name <- paste0(savedir,callType,'_clustering_',session,'.RData')
+  outfile.name <- paste0(savedir,callType,'_clustering_',session,'_anon.RData')
   if(testflag){
     outfile.name <- paste0(savedir,callType,'_clustering_',session,'_test.RData')
   }
