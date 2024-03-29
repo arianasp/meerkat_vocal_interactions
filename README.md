@@ -76,13 +76,13 @@ The code requires the following R packages to be installed via `install.packages
 
 The code requires the following raw data files to run:
 
-* `all_calls_sync_resolved_2023-09-10_cc_sn_filt_with_oor.csv`: contains a table of all labeled calls
+* `all_calls_sync_resolved_2023-09-10_cc_sn_filt_with_oor_anon.csv`: contains a table of all labeled calls
 
-* `HM2017_COORDINATES_all_sessions.RData`: contains GPS data (UTM) for the group HM2017 as well as timestamps
+* `HM2017_COORDINATES_all_sessions_anon.RData`: contains GPS data (UTM) for the group HM2017 as well as timestamps
 
-* `HM2017_DATAPRESENCE_all_sessions.RData`: contains information on whether GPS and audio recordings were on at every second of the dataset for group HM2017
+* `HM2017_DATAPRESENCE_all_sessions_anon.RData`: contains information on whether GPS and audio recordings were on at every second of the dataset for group HM2017
 
-* `HM2019_COORDINATES_all_sessions.RData`, `HM2019_DATAPRESENCE_all_sessions.RData`, `L2019_COORDINATES_all_sessions.RData`, `L2019_DATAPRESENCE_all_sessions.RData`: equivalent files for the groups HM2019 and L2019
+* `HM2019_COORDINATES_all_sessions_anon.RData`, `HM2019_DATAPRESENCE_all_sessions_anon.RData`, `L2019_COORDINATES_all_sessions_anon.RData`, `L2019_DATAPRESENCE_all_sessions_anon.RData`: equivalent files for the groups HM2019 and L2019
 
 The objects contained in the COORDINATES files are:
 
