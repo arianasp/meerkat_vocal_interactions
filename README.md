@@ -90,7 +90,7 @@ The objects contained in the COORDINATES files are:
 
 * `{groupyear}_allY`: same as  above but for y coordinates (northings)
 
-* `{groupyear}_indInfo`: table of indformation about the individual meerkats (name, DOB, status, domStart, code, dye, sex, shortCode, color). Most relevant columns are code (individual ID code) and status (age/sex/dominance status). The rows in this table correspond to the rows in the allX and allY matrices.
+* `{groupyear}_indInfo`: table of information about the individual meerkats (name, DOB, status, domStart, code, dye, sex, shortCode, color). Most relevant columns are code (individual ID code) and status (age/sex/dominance status). The rows in this table correspond to the rows in the allX and allY matrices.
 
 * `{groupyear}_timeLine`: vector of timestamp strings (in UTC) associated with each GPS point
 
