@@ -3,7 +3,7 @@ library(tidyverse)
 # Analyses of Meerkat call pair dynamics
 # finding the proportion of self vs non self reply
 
-load("05_self_nonself_reply_proportions.RData")
+load("05_self_nonself_reply_proportions_anon.RData")
 
 #find intercall interval destribution
 ICI <- quantile(both_years$lag,  probs = seq(.1, .9, by = .1), na.rm = T)[9]

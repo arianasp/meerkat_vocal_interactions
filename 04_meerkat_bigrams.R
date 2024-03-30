@@ -10,10 +10,10 @@ library(lubridate)
 library(gridExtra)
 
 #load data
-load("04_meerkat_bigrams.RData")
+load("04_meerkat_bigrams_anon.RData")
 
-#calculate inter call intercals
-ICI <- quantile(call_data$lag,  probs = seq(.1, .9, by = .1), na.rm = T)[9]
+#calculate inter call intervals and select a cutoff at th 90th percentile
+ICI <- quantile(as.numeric(call_data$lag),  probs = seq(.1, .9, by = .1), na.rm = T)[9]
 
 #recode some inconsistencies in call type names 
 call_data$stn_call_type <- str_replace(call_data$stn_call_type, "lc", "ld")
@@ -48,19 +48,21 @@ for (row in which(call_data$hyb == "sq")) {
   call_data <- rbind(call_data,  ext_row)
   }
 
-
+#loop through years
 all_pairs <- data.frame()
+#loop through years
 for (year in unique(call_data$year)) {
   year_select <- call_data[which(call_data$year == year), ]
-  
+  #loop through individuals
   for (ind in unique(year_select$ind)) {
     ind_select <- year_select[which(year_select$ind == ind) ,] 
-    
+    #loop through days
     for (day in unique(ind_select$date)) {
       day_select <- ind_select[which(ind_select$date == day) ,]
       day_select <-  day_select[order(day_select$t0GPS_UTC),]
       day_select$brake <- as.POSIXct(day_select$t0GPS_UTC , tz = "UTC") - 
         lag(as.POSIXct(day_select$tendGPS_UTC,  tz = "UTC"))
+      #select call pairs produced
       pairs_per_day <-
         cbind(
           paste(day_select$type_group[-length(day_select$type_group)], "_",   day_select$type_group[-1], sep = ""),
@@ -83,18 +85,19 @@ colnames(all_pairs) <- c("pair", "hyb", "brake", "ID", "file")
 
 
 
-
+#remove pairs with UNK and NA calls
 all_pairs <- all_pairs[-which(grepl("unk", all_pairs$pair)), ]
 all_pairs <- all_pairs[-which(grepl("NA", all_pairs$pair)), ]
 
+#count the call pairs
 pair_counts <- as.data.frame(table(all_pairs$pair))
-
+#only select the more frequent call pairs
 frequent_call_pairs <- pair_counts[which(pair_counts$Freq > 50),]
 
 frequent_pairs <- all_pairs[which(all_pairs$pair %in% frequent_call_pairs$Var1) ,]
 
 pairs_only <- separate(frequent_pairs, pair, c("call_1", "call_2"), sep = "_") [ , 1:2]
-
+#make a transition MATRIX for calculating pair probabilities
 input.matrix <- pairs_only
 
 #input.matrix <- read.table(file.choose(), header=TRUE, sep="\t", quote="", comment.char="")
@@ -107,15 +110,13 @@ output.table <- data.frame(COLLOCATE=rownames(pearson.residuals), pearson.residu
                            SUMABSDEV=apply(pearson.residuals, 1, \(af) sum(abs(af))),
                            LARGESTPREF=colnames(pearson.residuals)[apply(pearson.residuals, 1, \(af) which.max(af))])
 
-
+#reformat to long data for plotting
 longData<-melt(output.table[ , -(ncol(output.table) - 1)])
 longData<-longData[longData$value!=0,]
-
-
 longData$r_val <- round(longData$value, 2)
 
 
-
+#make plot for self repetitions
 self <- ggplot(longData, aes(x = variable, y = COLLOCATE)) + 
   geom_raster(aes(fill= value)) + 
   scale_fill_gradient2(low="blue", high="red", mid = "white") +
@@ -125,7 +126,7 @@ self <- ggplot(longData, aes(x = variable, y = COLLOCATE)) +
                      axis.text.y=element_text(size=12),
                      plot.title=element_text(size=14))
 
-
+#### repeat the data re arrangement but this time for caller transitions
 all_pairs <- data.frame()
 for (year in unique(call_data$year)) {
   year_select <- call_data[which(call_data$year == year), ]
@@ -157,9 +158,7 @@ for (year in unique(call_data$year)) {
 
 colnames(all_pairs) <- c("pair","brake", "ID1", "ID2")
 
-
-
-
+#remove pairs with UNK and NA calls
 all_pairs <- all_pairs[-which(grepl("unk", all_pairs$pair)), ]
 all_pairs <- all_pairs[-which(grepl("NA", all_pairs$pair)), ]
 
@@ -184,17 +183,13 @@ output.table <- data.frame(COLLOCATE=rownames(pearson.residuals), pearson.residu
                            LARGESTPREF=colnames(pearson.residuals)[apply(pearson.residuals, 1, \(af) which.max(af))])
 
  
-
-
-
+#reformat to long data for plotting
 longData<-melt(output.table[ , -(ncol(output.table) - 1)])
 longData<-longData[longData$value!=0,]
-
-
 longData$r_val <- round(longData$value, 2)
 
 
-
+#make plot for caller transitions
 non_self <- ggplot(longData, aes(x = variable, y = COLLOCATE)) + 
        geom_raster(aes(fill= value)) + 
        scale_fill_gradient2(low="blue", high="red", mid = "white", limits = c(-70,180), name = "") +
